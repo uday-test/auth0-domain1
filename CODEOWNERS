@@ -3,3 +3,9 @@
 # /base/**            @ciam-core
 # /overlays/**        @ciam-core
 # /apps/app-claims/** @team-claims
+# The core CIAM team owns all foundational policies and global overlays.
+/base/** @your-org/ciam-core
+/overlays/** @your-org/ciam-core
+
+# The app-claims team owns their specific application folder.
+/apps/app-claims/** @your-org/team-claims
