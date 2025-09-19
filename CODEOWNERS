@@ -10,4 +10,4 @@
 /overlays/** @uday-test/ciam-core
 
 # The app-claims team owns their specific application folder.
-/apps/app-claims/** @uday-test/team-claims
+/apps/app-claims/** @uday-test/team-claims 
