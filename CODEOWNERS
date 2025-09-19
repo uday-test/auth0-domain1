@@ -1,0 +1,5 @@
+# Populated on Day 2.
+# Example to be enabled tomorrow:
+# /base/**            @ciam-core
+# /overlays/**        @ciam-core
+# /apps/app-claims/** @team-claims

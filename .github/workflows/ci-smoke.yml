@@ -1,0 +1,27 @@
+name: CI Smoke (Day 1)
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Show tree
+        run: |
+          echo "Repository structure:"
+          ls -R
+
+      - name: Basic validations
+        run: |
+          echo "Running basic validations..."
+          # Informational PEM marker check (enforced later in Day 9 with OPA)
+          if grep -R --binary-files=without-match -n "-----BEGIN " . || true; then
+            echo "::notice::Potential PEM-like material detected (informational on Day 1)."
+          fi
+          echo "OK"
