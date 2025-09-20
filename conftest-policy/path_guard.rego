@@ -1,21 +1,19 @@
 package pr.pathguard
 import rego.v1
 
-# ------------------ helpers ------------------
+# -------- helpers --------
 norm_path(p) := replace(p, "\\", "/")
 
-# debug toggle
 debug_enabled if { input.debug == true }
 debug_enabled if { input.labels; is_array(input.labels); some l in input.labels; l == "debug:on" }
 
-# input shape checks
 valid_labels if { input.labels; is_array(input.labels) }
 valid_files  if { input.files;  is_array(input.files)  }
 
 deny contains "Invalid input: 'labels' must be an array" if { input.labels; not is_array(input.labels) }
 deny contains "Invalid input: 'files' must be an array"  if { input.files;  not is_array(input.files)  }
 
-# ------------------ labels (optional) ------------------
+# -------- labels (optional) --------
 allowed_app := app if {
   valid_labels
   some lbl in input.labels
@@ -38,7 +36,7 @@ allowed_tenant := ten if {
   ten != ""
 }
 
-# ------------------ derive from files ------------------
+# -------- derive from files (always-defined sets) --------
 apps_from_files := s if {
   valid_files
   s := {a |
@@ -88,7 +86,7 @@ has_allowed_tenant if { _ := allowed_tenant }
 has_derived_app    if { _ := derived_app }
 has_derived_tenant if { _ := derived_tenant }
 
-# ------------------ effective values ------------------
+# -------- effective values --------
 effective_app := ea if {
   has_allowed_app
   ea := allowed_app
@@ -112,7 +110,7 @@ effective_tenant := et if {
 has_effective_app    if { _ := effective_app }
 has_effective_tenant if { _ := effective_tenant }
 
-# ------------------ conflicts / unknowns ------------------
+# -------- conflicts / unknowns --------
 deny contains msg if {
   has_allowed_app
   has_derived_app
@@ -153,13 +151,12 @@ deny contains msg if {
   msg := "Cannot determine tenant from changes. Add label 'tenant:<slug>' or include files under tenants/dev/<slug>/"
 }
 
-# ------------------ prefixes & scope ------------------
+# -------- prefixes & scope helpers --------
 app_prefix := ap if {
   has_effective_app
   ea := effective_app
   ap := sprintf("apps/%s/", [ea])
 }
-
 tenant_prefix := tp if {
   has_effective_tenant
   et := effective_tenant
@@ -178,7 +175,6 @@ allowed_prefixes := arr if {
   arr := array.concat(aps, tps)
 }
 
-# single-head scope check
 file_in_scope(f) if {
   is_string(f)
   fp := norm_path(f)
@@ -188,7 +184,38 @@ file_in_scope(f) if {
   startswith(fp, p)
 }
 
-# ------------------ final deny ------------------
+# -------- early denies (strict) --------
+deny contains msg if {
+  has_effective_app
+  valid_files
+  some f in input.files
+  is_string(f)
+  fp := norm_path(f)
+  startswith(fp, "apps/")
+  not startswith(fp, sprintf("apps/%s/", [effective_app]))
+  msg := sprintf("App path out of scope: %s (expected under apps/%s/)", [fp, effective_app])
+}
+
+deny contains msg if {
+  has_effective_tenant
+  valid_files
+  some f in input.files
+  is_string(f)
+  fp := norm_path(f)
+  startswith(fp, "tenants/dev/")
+  not startswith(fp, sprintf("tenants/dev/%s/", [effective_tenant]))
+  msg := sprintf("Dev-tenant path out of scope: %s (expected under tenants/dev/%s/)", [fp, effective_tenant])
+}
+
+deny contains msg if {
+  valid_files
+  some f in input.files
+  is_string(f)
+  startswith(norm_path(f), "tenants/prod/")
+  msg := sprintf("Prod tenant path is not allowed in app-team PRs: %s", [f])
+}
+
+# -------- final out-of-scope guard --------
 deny contains msg if {
   has_effective_app
   has_effective_tenant
@@ -200,7 +227,7 @@ deny contains msg if {
   msg := sprintf("Out-of-scope change: %s (allowed prefixes: %v)", [f, allowed_prefixes])
 }
 
-# ------------------ debug (non-blocking) ------------------
+# -------- debug (non-blocking) --------
 warn contains msg if { debug_enabled; msg := sprintf("[debug] labels=%v", [input.labels]) }
 warn contains msg if { debug_enabled; msg := sprintf("[debug] files=%v",  [input.files])  }
 warn contains msg if { debug_enabled; msg := sprintf("[debug] derived_app_set=%v",    [apps_from_files]) }
