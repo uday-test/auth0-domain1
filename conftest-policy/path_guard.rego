@@ -2,20 +2,15 @@ package pr.pathguard
 import rego.v1
 
 #
-# Debug mode
-# - Turn on by adding PR label:  debug:on
-# - Or by setting input.debug = true (workflow can set this)
+# Debug mode:
+#   - Add PR label:  debug:on
+#   - Or set input.debug = true (workflow builds input.json)
 #
 debug_enabled if { some l; l := input.labels[_]; l == "debug:on" }
 debug_enabled if { input.debug == true }
 
-# Helper to emit debug as WARN lines (non-blocking)
-debug contains msg if {
-  debug_enabled
-  msg := sprintf("[debug] %s", [message])
-} with message as input._debug_message  # used via 'with' at call sites (see bottom)
-
 # ---- Label extraction ----
+# Expect labels:  app:<slug>   and   tenant:<slug>
 
 allowed_app := app if {
   some l
@@ -39,56 +34,59 @@ allowed_tenant := t if {
 deny contains "Missing label: add 'app:<app-slug>' (e.g., app:app-claims)" if { not allowed_app }
 deny contains "Missing label: add 'tenant:<tenant-slug>' (e.g., tenant:claims-team)" if { not allowed_tenant }
 
-# ---- Allowed path prefixes ----
-
+# ---- Allowed path prefixes derived from labels ----
 allowed_prefixes[p] if {
   app := allowed_app
   p := sprintf("apps/%s/", [app])
 }
-
 allowed_prefixes[p] if {
   t := allowed_tenant
   p := sprintf("tenants/dev/%s/", [t])
 }
 
-# Helper: file is within any allowed prefix
+# Helper: does a file live under any allowed prefix?
 file_in_scope(f) if {
   some p
   p := allowed_prefixes[_]
   startswith(f, p)
 }
 
-# Deny any changed file outside allowed prefixes (only when both labels present)
+# Deny any changed file outside allowed prefixes
+# (only after both labels are present)
 deny contains msg if {
   allowed_app
   allowed_tenant
   f := input.files[_]
   not file_in_scope(f)
-  msg := sprintf("Out-of-scope change: %s (allowed prefixes: %v)", [f, allowed_prefixes])
+  msg := sprintf("Out-of-scope change: %s (allowed prefixes: %v)", [f, {p | p := allowed_prefixes[_]}])
 }
 
-# ---- Debug WARNs (visible only if debug:on label or input.debug=true) ----
+# ---- Debug WARNs (non-blocking; shown only when debug is enabled) ----
 
-# Show raw labels and files
+# Show raw labels/files
 warn contains msg if {
   debug_enabled
   msg := sprintf("[debug] labels=%v", [input.labels])
 }
-
 warn contains msg if {
   debug_enabled
   msg := sprintf("[debug] files=%v", [input.files])
 }
 
-# Show derived values
+# Show derived values when available
 warn contains msg if {
   debug_enabled
-  msg := sprintf("[debug] allowed_app=%v allowed_tenant=%v", [allowed_app, allowed_tenant])
+  allowed_app
+  msg := sprintf("[debug] allowed_app=%v", [allowed_app])
 }
-
 warn contains msg if {
   debug_enabled
-  msg := sprintf("[debug] allowed_prefixes=%v", [allowed_prefixes])
+  allowed_tenant
+  msg := sprintf("[debug] allowed_tenant=%v", [allowed_tenant])
+}
+warn contains msg if {
+  debug_enabled
+  msg := sprintf("[debug] allowed_prefixes=%v", [{p | p := allowed_prefixes[_]}])
 }
 
 # Per-file scope decision
