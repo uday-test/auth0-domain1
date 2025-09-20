@@ -31,7 +31,6 @@ jobs:
           BASE="${{ github.event.pull_request.base.sha || '' }}"
           HEAD="${{ github.event.pull_request.head.sha || github.sha }}"
           if [ -z "$BASE" ]; then
-            # Fallback: use origin/main as base
             git fetch origin main
             BASE="$(git rev-parse origin/main)"
           fi
@@ -60,8 +59,7 @@ jobs:
           echo "labels<<EOF" >> "$GITHUB_OUTPUT"
           cat /tmp/labels.txt >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
-          echo "PR labels:"
-          cat /tmp/labels.txt || true
+          echo "PR labels:"; cat /tmp/labels.txt || true
 
       - name: Create Conftest input
         shell: bash
@@ -70,12 +68,7 @@ jobs:
           import json, os
           files  = [f for f in os.environ.get("FILES","").splitlines()  if f.strip()]
           labels = [l for l in os.environ.get("LABELS","").splitlines() if l.strip()]
-          data = {
-            "files":  files,
-            "labels": labels,
-            # Set to True to force debug WARNs without needing the 'debug:on' label
-            "debug":  False
-          }
+          data = {"files": files, "labels": labels, "debug": False}
           with open("input.json","w", encoding="utf-8") as fh:
               json.dump(data, fh, indent=2)
           print("----- input.json -----")
@@ -85,11 +78,11 @@ jobs:
           FILES:  ${{ steps.changed.outputs.changed }}
           LABELS: ${{ steps.labels.outputs.labels }}
 
-      - name: Guard: ensure .rego policy exists
+      - name: "Guard: ensure .rego policy exists"
         shell: bash
         run: |
           set -Eeuo pipefail
-          COUNT="$(find "${{ github.workspace }}/conftest-policy" -type f -name "*.rego" | wc -l || true)"
+          COUNT=$(find "${{ github.workspace }}/conftest-policy" -type f -name '*.rego' | wc -l || true)
           if [ "$COUNT" -eq 0 ]; then
             echo "::error::No .rego files found under conftest-policy/. Check the path or filename."
             exit 1
