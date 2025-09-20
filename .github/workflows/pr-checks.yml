@@ -82,7 +82,6 @@ jobs:
           FILES:  ${{ steps.changed.outputs.changed }}
           LABELS: ${{ steps.labels.outputs.labels }}
 
-
       - name: "Guard: ensure .rego policy exists"
         shell: bash
         run: |
