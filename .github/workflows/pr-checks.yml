@@ -104,11 +104,13 @@ jobs:
           curl -L https://github.com/open-policy-agent/conftest/releases/download/v0.62.0/conftest_0.62.0_Linux_x86_64.tar.gz | tar xz
           sudo mv conftest /usr/local/bin/
           conftest --version
-
+      
       - name: Conftest verify
-        run: conftest verify --policy "${{ github.workspace }}/conftest-policy" --namespace pr.pathguard
+        shell: bash
+        run: conftest verify --policy "${{ github.workspace }}/conftest-policy"
       
       - name: Run path guard
+        shell: bash
         run: conftest test --namespace pr.pathguard --policy "${{ github.workspace }}/conftest-policy" "${{ github.workspace }}/input.json"
       
 
