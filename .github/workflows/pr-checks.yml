@@ -106,12 +106,11 @@ jobs:
           conftest --version
 
       - name: Conftest verify
-        shell: bash
-        run: conftest verify --policy "${{ github.workspace }}/conftest-policy"
-
+        run: conftest verify --policy "${{ github.workspace }}/conftest-policy" --namespace pr.pathguard
+      
       - name: Run path guard
-        shell: bash
-        run: conftest test --policy "${{ github.workspace }}/conftest-policy" "${{ github.workspace }}/input.json"
+        run: conftest test --namespace pr.pathguard --policy "${{ github.workspace }}/conftest-policy" "${{ github.workspace }}/input.json"
+      
 
       - name: Upload input.json (artifact)
         if: always()
