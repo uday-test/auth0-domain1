@@ -1,23 +1,28 @@
 package pr.pathguard
 import rego.v1
 
-# ---------- helpers ----------
+# ------------------ helpers ------------------
 norm_path(p) := replace(p, "\\", "/")
 
+# debug toggle
 debug_enabled if { input.debug == true }
-debug_enabled if { some l in input.labels; l == "debug:on" }
+debug_enabled if { input.labels; is_array(input.labels); some l in input.labels; l == "debug:on" }
 
+# input shape checks
 valid_labels if { input.labels; is_array(input.labels) }
 valid_files  if { input.files;  is_array(input.files)  }
 
-# ---------- labels (optional) ----------
+deny contains "Invalid input: 'labels' must be an array" if { input.labels; not is_array(input.labels) }
+deny contains "Invalid input: 'files' must be an array"  if { input.files;  not is_array(input.files)  }
+
+# ------------------ labels (optional) ------------------
 allowed_app := app if {
   valid_labels
   some lbl in input.labels
   is_string(lbl)
-  startswith(lower(lbl), "app:")
   parts := split(lbl, ":")
   count(parts) >= 2
+  startswith(lower(lbl), "app:")
   app := lower(parts[1])
   app != ""
 }
@@ -26,14 +31,14 @@ allowed_tenant := ten if {
   valid_labels
   some lbl in input.labels
   is_string(lbl)
-  startswith(lower(lbl), "tenant:")
   parts := split(lbl, ":")
   count(parts) >= 2
+  startswith(lower(lbl), "tenant:")
   ten := lower(parts[1])
   ten != ""
 }
 
-# ---------- derive from files ----------
+# ------------------ derive from files ------------------
 apps_from_files := s if {
   valid_files
   s := {a |
@@ -46,7 +51,7 @@ apps_from_files := s if {
     a := lower(seg[1])
     a != ""
   }
-}
+} else := {} if { true }
 
 tenants_from_files := s if {
   valid_files
@@ -61,90 +66,132 @@ tenants_from_files := s if {
     t := lower(seg[2])
     t != ""
   }
-}
+} else := {} if { true }
 
 derived_app := a if {
-  apps_from_files
   count(apps_from_files) == 1
-  some a
-  apps_from_files[a]
+  some x
+  apps_from_files[x]
+  a := x
 }
 
 derived_tenant := t if {
-  tenants_from_files
   count(tenants_from_files) == 1
-  some t
-  tenants_from_files[t]
+  some y
+  tenants_from_files[y]
+  t := y
 }
 
-# ---------- choose effective values (label wins; else derived) ----------
-effective_app := a if { allowed_app; a := allowed_app } or { not allowed_app; derived_app; a := derived_app }
-effective_tenant := t if { allowed_tenant; t := allowed_tenant } or { not allowed_tenant; derived_tenant; t := derived_tenant }
+# existence helpers (no var rebind)
+has_allowed_app    if { _ := allowed_app }
+has_allowed_tenant if { _ := allowed_tenant }
+has_derived_app    if { _ := derived_app }
+has_derived_tenant if { _ := derived_tenant }
 
-# ---------- conflicts & unknowns ----------
+# ------------------ effective values ------------------
+effective_app := ea if {
+  has_allowed_app
+  ea := allowed_app
+}
+effective_app := ea if {
+  not has_allowed_app
+  has_derived_app
+  ea := derived_app
+}
+
+effective_tenant := et if {
+  has_allowed_tenant
+  et := allowed_tenant
+}
+effective_tenant := et if {
+  not has_allowed_tenant
+  has_derived_tenant
+  et := derived_tenant
+}
+
+has_effective_app    if { _ := effective_app }
+has_effective_tenant if { _ := effective_tenant }
+
+# ------------------ conflicts / unknowns ------------------
 deny contains msg if {
-  allowed_app
-  derived_app
-  allowed_app != derived_app
-  msg := sprintf("Label app:%s does not match changed files (apps/%s/**).", [allowed_app, derived_app])
+  has_allowed_app
+  has_derived_app
+  la := allowed_app
+  da := derived_app
+  la != da
+  msg := sprintf("Label app:%s does not match changed files (apps/%s/**).", [la, da])
 }
 
 deny contains msg if {
-  allowed_tenant
-  derived_tenant
-  allowed_tenant != derived_tenant
-  msg := sprintf("Label tenant:%s does not match changed files (tenants/dev/%s/**).", [allowed_tenant, derived_tenant])
+  has_allowed_tenant
+  has_derived_tenant
+  lt := allowed_tenant
+  dt := derived_tenant
+  lt != dt
+  msg := sprintf("Label tenant:%s does not match changed files (tenants/dev/%s/**).", [lt, dt])
 }
 
 deny contains msg if {
-  not effective_app
-  apps_from_files
+  not has_effective_app
   count(apps_from_files) > 1
   msg := sprintf("Multiple apps touched: %v. Add 'app:<slug>' label or limit the PR to one app.", [apps_from_files])
 }
 deny contains msg if {
-  not effective_app
-  (not apps_from_files or count(apps_from_files) == 0)
+  not has_effective_app
+  count(apps_from_files) == 0
   msg := "Cannot determine app from changes. Add label 'app:<slug>' or include files under apps/<slug>/"
 }
 
 deny contains msg if {
-  not effective_tenant
-  tenants_from_files
+  not has_effective_tenant
   count(tenants_from_files) > 1
   msg := sprintf("Multiple dev tenants touched: %v. Add 'tenant:<slug>' label or limit the PR to one tenant.", [tenants_from_files])
 }
 deny contains msg if {
-  not effective_tenant
-  (not tenants_from_files or count(tenants_from_files) == 0)
+  not has_effective_tenant
+  count(tenants_from_files) == 0
   msg := "Cannot determine tenant from changes. Add label 'tenant:<slug>' or include files under tenants/dev/<slug>/"
 }
 
-# ---------- prefixes & scope ----------
-app_prefix := sprintf("apps/%s/", [effective_app]) if { effective_app }
-tenant_prefix := sprintf("tenants/dev/%s/", [effective_tenant]) if { effective_tenant }
-
-allowed_prefixes := prefixes if {
-  aps := [app_prefix    | app_prefix]
-  tps := [tenant_prefix | tenant_prefix]
-  prefixes := array.concat(aps, tps)
+# ------------------ prefixes & scope ------------------
+app_prefix := ap if {
+  has_effective_app
+  ea := effective_app
+  ap := sprintf("apps/%s/", [ea])
 }
 
+tenant_prefix := tp if {
+  has_effective_tenant
+  et := effective_tenant
+  tp := sprintf("tenants/dev/%s/", [et])
+}
+
+prefix_set := s if {
+  s1 := {p | p := app_prefix}
+  s2 := {p | p := tenant_prefix}
+  s := union({s1, s2})
+}
+
+allowed_prefixes := arr if {
+  aps := [p | p := app_prefix]
+  tps := [p | p := tenant_prefix]
+  arr := array.concat(aps, tps)
+}
+
+# single-head scope check
 file_in_scope(f) if {
   is_string(f)
-  ap := app_prefix
-  startswith(norm_path(f), ap)
-}
-file_in_scope(f) if {
-  is_string(f)
-  tp := tenant_prefix
-  startswith(norm_path(f), tp)
+  fp := norm_path(f)
+  ps := prefix_set
+  some p
+  ps[p]
+  startswith(fp, p)
 }
 
-# ---------- final deny ----------
+# ------------------ final deny ------------------
 deny contains msg if {
-  effective_app
-  effective_tenant
+  has_effective_app
+  has_effective_tenant
   valid_files
   some f in input.files
   is_string(f)
@@ -153,14 +200,14 @@ deny contains msg if {
   msg := sprintf("Out-of-scope change: %s (allowed prefixes: %v)", [f, allowed_prefixes])
 }
 
-# ---------- debug (non-blocking) ----------
+# ------------------ debug (non-blocking) ------------------
 warn contains msg if { debug_enabled; msg := sprintf("[debug] labels=%v", [input.labels]) }
 warn contains msg if { debug_enabled; msg := sprintf("[debug] files=%v",  [input.files])  }
-warn contains msg if { debug_enabled; msg := sprintf("[debug] derived_app_set=%v",     [apps_from_files]) }
-warn contains msg if { debug_enabled; msg := sprintf("[debug] derived_tenant_set=%v",  [tenants_from_files]) }
-warn contains msg if { debug_enabled; effective_app;    msg := sprintf("[debug] effective_app=%v",    [effective_app]) }
-warn contains msg if { debug_enabled; effective_tenant; msg := sprintf("[debug] effective_tenant=%v", [effective_tenant]) }
-warn contains msg if { debug_enabled; allowed_prefixes; msg := sprintf("[debug] allowed_prefixes=%v", [allowed_prefixes]) }
+warn contains msg if { debug_enabled; msg := sprintf("[debug] derived_app_set=%v",    [apps_from_files]) }
+warn contains msg if { debug_enabled; msg := sprintf("[debug] derived_tenant_set=%v", [tenants_from_files]) }
+warn contains msg if { debug_enabled; has_effective_app;    msg := sprintf("[debug] effective_app=%v",    [effective_app]) }
+warn contains msg if { debug_enabled; has_effective_tenant; msg := sprintf("[debug] effective_tenant=%v", [effective_tenant]) }
+warn contains msg if { debug_enabled; allowed_prefixes;     msg := sprintf("[debug] allowed_prefixes=%v", [allowed_prefixes]) }
 warn contains msg if {
   debug_enabled
   valid_files

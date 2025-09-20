@@ -3,26 +3,49 @@ name: Path Guard (Conftest)
 on:
   pull_request:
     branches: [ main ]
+    types: [opened, reopened, synchronize, edited, labeled, unlabeled]
   workflow_dispatch:
 
 permissions:
   contents: read
   pull-requests: read
 
+concurrency:
+  group: pr-guard-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   path-guard:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-        with: { fetch-depth: 0 }
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine base & head
+        id: revs
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          BASE="${{ github.event.pull_request.base.sha || '' }}"
+          HEAD="${{ github.event.pull_request.head.sha || github.sha }}"
+          if [ -z "$BASE" ]; then
+            # Fallback: use origin/main as base
+            git fetch origin main
+            BASE="$(git rev-parse origin/main)"
+          fi
+          echo "base=$BASE" >> "$GITHUB_OUTPUT"
+          echo "head=$HEAD" >> "$GITHUB_OUTPUT"
+          echo "Base: $BASE"
+          echo "Head: $HEAD"
 
       - name: Compute changed files
         id: changed
         shell: bash
         run: |
-          set -euo pipefail
-          git fetch origin main
-          CHANGED=$(git diff --name-only origin/main...HEAD || true)
+          set -Eeuo pipefail
+          CHANGED="$(git diff --name-only ${{ steps.revs.outputs.base }}...${{ steps.revs.outputs.head }} || true)"
           echo "changed<<EOF" >> "$GITHUB_OUTPUT"
           echo "$CHANGED" >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
@@ -37,7 +60,8 @@ jobs:
           echo "labels<<EOF" >> "$GITHUB_OUTPUT"
           cat /tmp/labels.txt >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
-          echo "PR labels:"; cat /tmp/labels.txt || true
+          echo "PR labels:"
+          cat /tmp/labels.txt || true
 
       - name: Create Conftest input
         shell: bash
@@ -46,7 +70,12 @@ jobs:
           import json, os
           files  = [f for f in os.environ.get("FILES","").splitlines()  if f.strip()]
           labels = [l for l in os.environ.get("LABELS","").splitlines() if l.strip()]
-          data = {"files": files, "labels": labels, "debug": False}
+          data = {
+            "files":  files,
+            "labels": labels,
+            # Set to True to force debug WARNs without needing the 'debug:on' label
+            "debug":  False
+          }
           with open("input.json","w", encoding="utf-8") as fh:
               json.dump(data, fh, indent=2)
           print("----- input.json -----")
@@ -56,11 +85,22 @@ jobs:
           FILES:  ${{ steps.changed.outputs.changed }}
           LABELS: ${{ steps.labels.outputs.labels }}
 
-      - name: Show rego + input
+      - name: Guard: ensure .rego policy exists
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          COUNT="$(find "${{ github.workspace }}/conftest-policy" -type f -name "*.rego" | wc -l || true)"
+          if [ "$COUNT" -eq 0 ]; then
+            echo "::error::No .rego files found under conftest-policy/. Check the path or filename."
+            exit 1
+          fi
+          echo "Found $COUNT rego file(s)."
+
+      - name: Show workspace snippets
         shell: bash
         run: |
           echo "pwd: $(pwd)"
-          echo "--- rego files ---"
+          echo "--- rego files (<= depth 3) ---"
           find . -maxdepth 3 -type f -name "*.rego" -print || true
           echo "--- input.json ---"
           cat input.json || true
@@ -79,3 +119,11 @@ jobs:
       - name: Run path guard
         shell: bash
         run: conftest test --policy "${{ github.workspace }}/conftest-policy" "${{ github.workspace }}/input.json"
+
+      - name: Upload input.json (artifact)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: conftest-input
+          path: input.json
+          retention-days: 7
