@@ -57,4 +57,5 @@ jobs:
           conftest --version
 
       - name: Run path guard
-        run: conftest test --policy policy input.json
+        run: conftest test --policy "${{ github.workspace }}/conftest-policy" "${{ github.workspace }}/input.json"
+
