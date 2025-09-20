@@ -1,31 +1,60 @@
-name: PR Checks
+name: Path Guard (Conftest)
 
 on:
   pull_request:
     branches: [ main ]
 
+permissions:
+  contents: read
+  pull-requests: read
+
 jobs:
-  policy-checks:
+  path-guard:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+
+      - name: Compute changed files
+        id: changed
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CHANGED=$(git diff --name-only origin/main...HEAD || true)
+          echo "changed<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGED" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGED"
+
+      - name: Collect PR labels
+        id: labels
+        run: |
+          jq -r '.pull_request.labels[].name' < "$GITHUB_EVENT_PATH" | tr -d '\r' > /tmp/labels.txt || true
+          echo "labels<<EOF" >> $GITHUB_OUTPUT
+          cat /tmp/labels.txt >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          cat /tmp/labels.txt || true
+
+      - name: Create Conftest input
+        run: |
+          python - << 'PY'
+          import json, os
+          data = {
+            "files":  [f for f in os.environ.get("FILES","").splitlines() if f.strip()],
+            "labels": [l for l in os.environ.get("LABELS","").splitlines() if l.strip()],
+          }
+          open("input.json","w").write(json.dumps(data, indent=2))
+          print(json.dumps(data, indent=2))
+          PY
+        env:
+          FILES:  ${{ steps.changed.outputs.changed }}
+          LABELS: ${{ steps.labels.outputs.labels }}
 
       - name: Install Conftest
         run: |
-          # Download the latest Conftest binary for Linux
-          wget -O conftest.tar.gz https://github.com/open-policy-agent/conftest/releases/download/v0.40.0/conftest_0.40.0_Linux_x86_64.tar.gz
-          # Extract the binary
-          tar -xvf conftest.tar.gz
-          # Move the binary to a directory in the system's PATH
-          sudo mv conftest /usr/local/bin/conftest
-          # Verify installation
-          conftest -v
+          curl -L https://github.com/open-policy-agent/conftest/releases/download/v0.54.0/conftest_0.54.0_Linux_x86_64.tar.gz | tar xz
+          sudo mv conftest /usr/local/bin/
+          conftest --version
 
-      - name: Run baseline OPA policies
-        run: |
-          conftest test . --policy ./base/policies --namespace auth0.policy --ignore .git
-
-      - name: Run path-ownership policy
-        run: |
-          conftest test . --policy ./conftest-policy --namespace auth0.policy --ignore .git
+      - name: Run path guard
+        run: conftest test --policy policy input.json

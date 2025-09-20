@@ -1,29 +1,33 @@
-package auth0.policy
+package pr.pathguard
+import rego.v1
 
-# This rule denies any pull request from modifying files within the base directory.
-deny[msg] {
-    # Check if any file in the PR has a path that starts with "base/"
-    some i
-    path := input.files[i].path
-    startswith(path, "base/")
-    msg := "PRs are not allowed to modify files in the /base directory. These files are owned by the CIAM team and managed via a separate process."
+# Extract "app:<slug>" and "tenant:<slug>" labels from PR
+allowed_app := app if {
+  some l
+  l := input.labels[_]
+  startswith(l, "app:")
+  app := split(l, ":")[1]
+}
+allowed_tenant := t if {
+  some l
+  l := input.labels[_]
+  startswith(l, "tenant:")
+  t := split(l, ":")[1]
 }
 
-# This rule denies any pull request from modifying files within the overlays directory.
-deny[msg] {
-    # Check if any file in the PR has a path that starts with "overlays/"
-    some i
-    path := input.files[i].path
-    startswith(path, "overlays/")
-    msg := "PRs are not allowed to modify files in the /overlays directory. These files are owned by the CIAM team and managed via a separate process."
+# Build allowed prefixes
+allowed_prefixes := {
+  sprintf("apps/%s/", [allowed_app]),
+  sprintf("tenants/dev/%s/", [allowed_tenant]),
 }
 
-# This rule restricts app teams from modifying tenant configurations for non-dev environments.
-deny[msg] {
-    some i
-    path := input.files[i].path
-    startswith(path, "tenants/")
-    # Explicitly allow changes only to the dev tenant directory
-    not startswith(path, "tenants/dev/")
-    msg := "PRs are only allowed to modify files in their designated dev tenant. All promotions to QA and Prod are handled by the CIAM team's promotion pipeline."
+# Friendly errors when labels are missing
+deny contains "Missing label: add 'app:<app-slug>' (e.g., app:app-claims)" if { not allowed_app }
+deny contains "Missing label: add 'tenant:<tenant-slug>' (e.g., tenant:claims-team)" if { not allowed_tenant }
+
+# Deny any changed file outside allowed prefixes
+deny contains msg if {
+  f := input.files[_]
+  not some p; p := allowed_prefixes[_]; startswith(f, p)
+  msg := sprintf("Out-of-scope change: %s (allowed: %v)", [f, allowed_prefixes])
 }
