@@ -1,0 +1,21 @@
+name: PR Checks
+
+on:
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  policy-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Conftest
+        uses: stefanprodan/conftest-action@v1
+        with:
+          version: '0.40.0'
+
+      - name: Run path-ownership policy
+        run: |
+          conftest test . --policy ./conftest-policy --namespace auth0.policy
