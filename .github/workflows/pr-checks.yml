@@ -64,23 +64,24 @@ jobs:
       - name: Create Conftest input
         shell: bash
         run: |
-          python - << 'PY'
+          python3 - << 'PY'
           import json, os
-          files  = [f for f in os.environ.get("FILES","").splitlines()  if f.strip()]
-          labels = [l for l in os.environ.get("LABELS","").splitlines() if l.strip()]
+          files  = [f.strip() for f in os.environ.get("FILES","").splitlines()  if f.strip()]
+          labels = [l.strip() for l in os.environ.get("LABELS","").splitlines() if l.strip()]
           data = {
             "files":  files,
             "labels": labels,
-            "debug":  false   # set true to force [debug] WARNs
+            "debug":  False   # set True to force [debug] WARNs
           }
           with open("input.json","w", encoding="utf-8") as fh:
-              json.dump(data, fh, indent=2)
+            json.dump(data, fh, indent=2)
           print("----- input.json -----")
           print(json.dumps(data, indent=2))
           PY
         env:
           FILES:  ${{ steps.changed.outputs.changed }}
           LABELS: ${{ steps.labels.outputs.labels }}
+
 
       - name: "Guard: ensure .rego policy exists"
         shell: bash
