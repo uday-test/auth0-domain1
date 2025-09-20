@@ -3,6 +3,7 @@ name: Path Guard (Conftest)
 on:
   pull_request:
     branches: [ main ]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -12,7 +13,8 @@ jobs:
   path-guard:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
@@ -33,6 +35,7 @@ jobs:
         id: labels
         shell: bash
         run: |
+          # Read labels from the event payload
           jq -r '.pull_request.labels[].name' < "$GITHUB_EVENT_PATH" | tr -d '\r' > /tmp/labels.txt || true
           echo "labels<<EOF" >> "$GITHUB_OUTPUT"
           cat /tmp/labels.txt >> "$GITHUB_OUTPUT"
@@ -45,13 +48,16 @@ jobs:
         run: |
           python - << 'PY'
           import json, os
+          files  = [f for f in os.environ.get("FILES","").splitlines()  if f.strip()]
+          labels = [l for l in os.environ.get("LABELS","").splitlines() if l.strip()]
           data = {
-            "files":  [f for f in os.environ.get("FILES","").splitlines() if f.strip()],
-            "labels": [l for l in os.environ.get("LABELS","").splitlines() if l.strip()],
-            # flip to True to force debug without needing the debug:on label
+            "files":  files,
+            "labels": labels,
+            # set to True if you want debug WARNs even without the 'debug:on' label
             "debug": False
           }
-          open("input.json","w").write(json.dumps(data, indent=2))
+          with open("input.json","w", encoding="utf-8") as fh:
+              json.dump(data, fh, indent=2)
           print("----- input.json -----")
           print(json.dumps(data, indent=2))
           PY
@@ -67,17 +73,18 @@ jobs:
           ls -la
           echo "--- rego files (depth<=3) ---"
           find . -maxdepth 3 -type f -name "*.rego" -print || true
+          echo "--- show input.json ---"
+          cat input.json || true
 
       - name: Install Conftest
-        if: ${{ hashFiles('conftest-policy/**/*.rego') != '' }}
         shell: bash
         run: |
-          curl -L https://github.com/open-policy-agent/conftest/releases/download/v0.54.0/conftest_0.54.0_Linux_x86_64.tar.gz | tar xz
+          curl -L https://github.com/open-policy-agent/conftest/releases/download/v0.62.0/conftest_0.62.0_Linux_x86_64.tar.gz \
+            | tar xz
           sudo mv conftest /usr/local/bin/
           conftest --version
 
-      - name: Conftest verify (compile policies)
-        if: ${{ hashFiles('conftest-policy/**/*.rego') != '' }}
+      - name: Conftest verify
         shell: bash
         run: conftest verify --policy "${{ github.workspace }}/conftest-policy"
 
