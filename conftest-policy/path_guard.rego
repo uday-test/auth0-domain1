@@ -13,6 +13,13 @@ valid_files  if { input.files;  is_array(input.files)  }
 deny contains "Invalid input: 'labels' must be an array" if { input.labels; not is_array(input.labels) }
 deny contains "Invalid input: 'files' must be an array"  if { input.files;  not is_array(input.files)  }
 
+# -------- team → app mapping (extend as you add teams) --------
+tenant_to_app := {
+  "claims-team": "app-claims",
+  # "payments-team": "app-payments",
+  # "loyalty-team":  "app-loyalty",
+}
+
 # -------- labels (optional) --------
 allowed_app := app if {
   valid_labels
@@ -87,30 +94,36 @@ has_derived_app    if { _ := derived_app }
 has_derived_tenant if { _ := derived_tenant }
 
 # -------- effective values --------
-effective_app := ea if {
-  has_allowed_app
-  ea := allowed_app
-}
-effective_app := ea if {
-  not has_allowed_app
-  has_derived_app
-  ea := derived_app
-}
+effective_app := ea if { has_allowed_app; ea := allowed_app }
+effective_app := ea if { not has_allowed_app; has_derived_app; ea := derived_app }
 
-effective_tenant := et if {
-  has_allowed_tenant
-  et := allowed_tenant
-}
-effective_tenant := et if {
-  not has_allowed_tenant
-  has_derived_tenant
-  et := derived_tenant
-}
+effective_tenant := et if { has_allowed_tenant; et := allowed_tenant }
+effective_tenant := et if { not has_allowed_tenant; has_derived_tenant; et := derived_tenant }
 
 has_effective_app    if { _ := effective_app }
 has_effective_tenant if { _ := effective_tenant }
 
-# -------- conflicts / unknowns --------
+# -------- enforce team→app pairing (this fixes your case) --------
+has_mapping_for_tenant if {
+  has_effective_tenant
+  _ := tenant_to_app[effective_tenant]
+}
+
+deny contains msg if {
+  has_effective_tenant
+  not has_mapping_for_tenant
+  msg := sprintf("Tenant %q has no registered app mapping; configure tenant_to_app in policy (or add labels).", [effective_tenant])
+}
+
+deny contains msg if {
+  has_effective_tenant
+  has_effective_app
+  expected_app := tenant_to_app[effective_tenant]
+  expected_app != effective_app
+  msg := sprintf("Team/app mismatch: tenant %q is paired with app %q, but changes target app %q.", [effective_tenant, expected_app, effective_app])
+}
+
+# -------- conflicts / unknowns (labels vs derived) --------
 deny contains msg if {
   has_allowed_app
   has_derived_app
@@ -152,16 +165,8 @@ deny contains msg if {
 }
 
 # -------- prefixes & scope helpers --------
-app_prefix := ap if {
-  has_effective_app
-  ea := effective_app
-  ap := sprintf("apps/%s/", [ea])
-}
-tenant_prefix := tp if {
-  has_effective_tenant
-  et := effective_tenant
-  tp := sprintf("tenants/dev/%s/", [et])
-}
+app_prefix := ap if { has_effective_app;    ea := effective_app;    ap := sprintf("apps/%s/", [ea]) }
+tenant_prefix := tp if { has_effective_tenant; et := effective_tenant; tp := sprintf("tenants/dev/%s/", [et]) }
 
 prefix_set := s if {
   s1 := {p | p := app_prefix}
