@@ -13,10 +13,8 @@ jobs:
   path-guard:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
 
       - name: Compute changed files
         id: changed
@@ -31,17 +29,15 @@ jobs:
           echo "Changed files:"
           echo "$CHANGED"
 
-      - name: Collect PR labels
+      - name: Collect PR labels (optional)
         id: labels
         shell: bash
         run: |
-          # Read labels from the event payload
           jq -r '.pull_request.labels[].name' < "$GITHUB_EVENT_PATH" | tr -d '\r' > /tmp/labels.txt || true
           echo "labels<<EOF" >> "$GITHUB_OUTPUT"
           cat /tmp/labels.txt >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
-          echo "PR labels:"
-          cat /tmp/labels.txt || true
+          echo "PR labels:"; cat /tmp/labels.txt || true
 
       - name: Create Conftest input
         shell: bash
@@ -50,12 +46,7 @@ jobs:
           import json, os
           files  = [f for f in os.environ.get("FILES","").splitlines()  if f.strip()]
           labels = [l for l in os.environ.get("LABELS","").splitlines() if l.strip()]
-          data = {
-            "files":  files,
-            "labels": labels,
-            # set to True if you want debug WARNs even without the 'debug:on' label
-            "debug": False
-          }
+          data = {"files": files, "labels": labels, "debug": False}
           with open("input.json","w", encoding="utf-8") as fh:
               json.dump(data, fh, indent=2)
           print("----- input.json -----")
@@ -65,22 +56,19 @@ jobs:
           FILES:  ${{ steps.changed.outputs.changed }}
           LABELS: ${{ steps.labels.outputs.labels }}
 
-      - name: Debug workspace
+      - name: Show rego + input
         shell: bash
         run: |
           echo "pwd: $(pwd)"
-          echo "--- top-level ---"
-          ls -la
-          echo "--- rego files (depth<=3) ---"
+          echo "--- rego files ---"
           find . -maxdepth 3 -type f -name "*.rego" -print || true
-          echo "--- show input.json ---"
+          echo "--- input.json ---"
           cat input.json || true
 
       - name: Install Conftest
         shell: bash
         run: |
-          curl -L https://github.com/open-policy-agent/conftest/releases/download/v0.62.0/conftest_0.62.0_Linux_x86_64.tar.gz \
-            | tar xz
+          curl -L https://github.com/open-policy-agent/conftest/releases/download/v0.62.0/conftest_0.62.0_Linux_x86_64.tar.gz | tar xz
           sudo mv conftest /usr/local/bin/
           conftest --version
 
