@@ -1,74 +1,99 @@
-name: Path Guard (Conftest)
+package pr.pathguard
+import rego.v1
 
-on:
-  pull_request:
-    branches: [ main ]
+#
+# Debug mode
+# - Turn on by adding PR label:  debug:on
+# - Or by setting input.debug = true (workflow can set this)
+#
+debug_enabled if { some l; l := input.labels[_]; l == "debug:on" }
+debug_enabled if { input.debug == true }
 
-permissions:
-  contents: read
-  pull-requests: read
+# Helper to emit debug as WARN lines (non-blocking)
+debug contains msg if {
+  debug_enabled
+  msg := sprintf("[debug] %s", [message])
+} with message as input._debug_message  # used via 'with' at call sites (see bottom)
 
-jobs:
-  path-guard:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+# ---- Label extraction ----
 
-      - name: Compute changed files
-        id: changed
-        run: |
-          set -euo pipefail
-          git fetch origin main
-          CHANGED=$(git diff --name-only origin/main...HEAD || true)
-          echo "changed<<EOF" >> $GITHUB_OUTPUT
-          echo "$CHANGED" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-          echo "$CHANGED"
+allowed_app := app if {
+  some l
+  l := input.labels[_]
+  startswith(l, "app:")
+  parts := split(l, ":")
+  count(parts) == 2
+  app := parts[1]
+}
 
-      - name: Collect PR labels
-        id: labels
-        run: |
-          jq -r '.pull_request.labels[].name' < "$GITHUB_EVENT_PATH" | tr -d '\r' > /tmp/labels.txt || true
-          echo "labels<<EOF" >> $GITHUB_OUTPUT
-          cat /tmp/labels.txt >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-          cat /tmp/labels.txt || true
+allowed_tenant := t if {
+  some l
+  l := input.labels[_]
+  startswith(l, "tenant:")
+  parts := split(l, ":")
+  count(parts) == 2
+  t := parts[1]
+}
 
-      - name: Create Conftest input
-        run: |
-          python - << 'PY'
-          import json, os
-          data = {
-            "files":  [f for f in os.environ.get("FILES","").splitlines() if f.strip()],
-            "labels": [l for l in os.environ.get("LABELS","").splitlines() if l.strip()],
-          }
-          open("input.json","w").write(json.dumps(data, indent=2))
-          print(json.dumps(data, indent=2))
-          PY
-        env:
-          FILES:  ${{ steps.changed.outputs.changed }}
-          LABELS: ${{ steps.labels.outputs.labels }}
+# Friendly errors if required labels are missing
+deny contains "Missing label: add 'app:<app-slug>' (e.g., app:app-claims)" if { not allowed_app }
+deny contains "Missing label: add 'tenant:<tenant-slug>' (e.g., tenant:claims-team)" if { not allowed_tenant }
 
-      - name: Debug workspace
-        run: |
-          echo "pwd: $(pwd)"
-          echo "--- tree ---"
-          ls -R | sed -n '1,200p'
-          echo "--- rego files ---"
-          find . -maxdepth 3 -type f -name "*.rego" -print || true
+# ---- Allowed path prefixes ----
 
-      - name: Install Conftest
-        if: ${{ hashFiles('conftest-policy/**/*.rego') != '' }}
-        run: |
-          curl -L https://github.com/open-policy-agent/conftest/releases/download/v0.54.0/conftest_0.54.0_Linux_x86_64.tar.gz | tar xz
-          sudo mv conftest /usr/local/bin/
-          conftest --version
+allowed_prefixes[p] if {
+  app := allowed_app
+  p := sprintf("apps/%s/", [app])
+}
 
-      - name: Conftest verify
-        if: ${{ hashFiles('conftest-policy/**/*.rego') != '' }}
-        run: conftest verify --policy "${{ github.workspace }}/conftest-policy"
+allowed_prefixes[p] if {
+  t := allowed_tenant
+  p := sprintf("tenants/dev/%s/", [t])
+}
 
-      - name: Run path guard
-        run: conftest test --policy "${{ github.workspace }}/conftest-policy" "${{ github.workspace }}/input.json"
+# Helper: file is within any allowed prefix
+file_in_scope(f) if {
+  some p
+  p := allowed_prefixes[_]
+  startswith(f, p)
+}
+
+# Deny any changed file outside allowed prefixes (only when both labels present)
+deny contains msg if {
+  allowed_app
+  allowed_tenant
+  f := input.files[_]
+  not file_in_scope(f)
+  msg := sprintf("Out-of-scope change: %s (allowed prefixes: %v)", [f, allowed_prefixes])
+}
+
+# ---- Debug WARNs (visible only if debug:on label or input.debug=true) ----
+
+# Show raw labels and files
+warn contains msg if {
+  debug_enabled
+  msg := sprintf("[debug] labels=%v", [input.labels])
+}
+
+warn contains msg if {
+  debug_enabled
+  msg := sprintf("[debug] files=%v", [input.files])
+}
+
+# Show derived values
+warn contains msg if {
+  debug_enabled
+  msg := sprintf("[debug] allowed_app=%v allowed_tenant=%v", [allowed_app, allowed_tenant])
+}
+
+warn contains msg if {
+  debug_enabled
+  msg := sprintf("[debug] allowed_prefixes=%v", [allowed_prefixes])
+}
+
+# Per-file scope decision
+warn contains msg if {
+  debug_enabled
+  f := input.files[_]
+  msg := sprintf("[debug] file=%s in_scope=%v", [f, file_in_scope(f)])
+}
