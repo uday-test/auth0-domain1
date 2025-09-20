@@ -24,8 +24,8 @@ jobs:
 
       - name: Run baseline OPA policies
         run: |
-          conftest test . --policy ./base/policies --namespace auth0.policy
+          conftest test . --policy ./base/policies --namespace auth0.policy --ignore .git
 
       - name: Run path-ownership policy
         run: |
-          conftest test . --policy ./conftest-policy --namespace auth0.policy
+          conftest test . --policy ./conftest-policy --namespace auth0.policy --ignore .git
