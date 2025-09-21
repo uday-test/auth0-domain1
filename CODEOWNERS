@@ -1,13 +1,20 @@
-# Populated on Day 2.
-# Example to be enabled tomorrow:
-# /base/**            @ciam-core
-# /overlays/**        @ciam-core
-# /apps/app-claims/** @team-claims
+# ===== Core / platform ownership =====
+/base/**              @uday-test/ciam-core
+/overlays/**          @uday-test/ciam-core
+/tenants/prod/**      @uday-test/ciam-core
+/.github/**           @uday-test/ciam-core
 
+# (Optional) root & shared docs owned by core
+/README.md            @uday-test/ciam-core
+/LICENSE              @uday-test/ciam-core
 
-# The core CIAM team owns all foundational policies and global overlays.
-/base/** @uday-test/ciam-core
-/overlays/** @uday-test/ciam-core
+# ===== App1 team ownership =====
+/apps/app1/**                 @uday-test/team-app1
+/tenants/dev/app1-team/**     @uday-test/team-app1
 
-# The app-claims team owns their specific application folder
-/apps/app-claims/** @uday-test/team-claims 
+# ===== App2 team ownership =====
+/apps/app2/**                 @uday-test/team-app2
+/tenants/dev/app2-team/**     @uday-test/team-app2
+
+# ===== Default catch-all (keep last) =====
+*                      @uday-test/ciam-core
