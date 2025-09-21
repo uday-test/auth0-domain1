@@ -1,0 +1,11 @@
+﻿{
+    "debug":  false,
+    "labels":  [
+                   "app:app-claims",
+                   "tenant:claims-team"
+               ],
+    "files":  [
+                  "apps/app-claims/demo/ok.txt",
+                  "tenants/dev/claims-team/demo/ok.txt"
+              ]
+}

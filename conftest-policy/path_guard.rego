@@ -5,52 +5,37 @@ import rego.v1
 norm_path(p) := replace(p, "\\", "/")
 
 debug_enabled if { input.debug == true }
-debug_enabled if { input.labels; is_array(input.labels); some l in input.labels; l == "debug:on" }
+valid_files if { input.files; is_array(input.files) }
+valid_actor_teams if { input.actor_teams; is_array(input.actor_teams) }
 
-valid_labels if { input.labels; is_array(input.labels) }
-valid_files  if { input.files;  is_array(input.files)  }
+# -------- actor teams --------
+actor_team_set := s if {
+  valid_actor_teams
+  s := { lower(t) | some t in input.actor_teams; is_string(t) }
+} else := {} if { true }
 
-deny contains "Invalid input: 'labels' must be an array" if { input.labels; not is_array(input.labels) }
-deny contains "Invalid input: 'files' must be an array"  if { input.files;  not is_array(input.files)  }
+# -------- team → tenant → app mapping --------
+team_to_tenant := {
+  "team-app1": "app1-team",
+  "team-app2": "app2-team",
+}
 
-# -------- team → app mapping (extend as you add teams) --------
 tenant_to_app := {
-  "claims-team": "app-claims",
-  # "payments-team": "app-payments",
-  # "loyalty-team":  "app-loyalty",
+  "app1-team": "app1",
+  "app2-team": "app2",
 }
 
-# -------- labels (optional) --------
-allowed_app := app if {
-  valid_labels
-  some lbl in input.labels
-  is_string(lbl)
-  parts := split(lbl, ":")
-  count(parts) >= 2
-  startswith(lower(lbl), "app:")
-  app := lower(parts[1])
-  app != ""
-}
+# Optional: core bypass
+core_teams := {"ciam-core"}
+core_bypass if { some t; actor_team_set[t]; core_teams[t] }
 
-allowed_tenant := ten if {
-  valid_labels
-  some lbl in input.labels
-  is_string(lbl)
-  parts := split(lbl, ":")
-  count(parts) >= 2
-  startswith(lower(lbl), "tenant:")
-  ten := lower(parts[1])
-  ten != ""
-}
-
-# -------- derive from files (always-defined sets) --------
+# -------- derive from files --------
 apps_from_files := s if {
   valid_files
   s := {a |
     some f in input.files
     is_string(f)
-    fp := norm_path(f)
-    seg := split(fp, "/")
+    seg := split(norm_path(f), "/")
     count(seg) >= 2
     seg[0] == "apps"
     a := lower(seg[1])
@@ -63,8 +48,7 @@ tenants_from_files := s if {
   s := {t |
     some f in input.files
     is_string(f)
-    fp := norm_path(f)
-    seg := split(fp, "/")
+    seg := split(norm_path(f), "/")
     count(seg) >= 3
     seg[0] == "tenants"
     seg[1] == "dev"
@@ -73,100 +57,66 @@ tenants_from_files := s if {
   }
 } else := {} if { true }
 
-derived_app := a if {
-  count(apps_from_files) == 1
-  some x
-  apps_from_files[x]
-  a := x
-}
+derived_app := a if { count(apps_from_files) == 1; some x; apps_from_files[x]; a := x }
+derived_tenant := t if { count(tenants_from_files) == 1; some y; tenants_from_files[y]; t := y }
 
-derived_tenant := t if {
-  count(tenants_from_files) == 1
-  some y
-  tenants_from_files[y]
-  t := y
-}
+# -------- effective values (path > actor team) --------
+effective_tenant := et if { _ := derived_tenant; et := derived_tenant }
+effective_tenant := et if { not derived_tenant; some ts in actor_team_set; et := team_to_tenant[ts] }
 
-# existence helpers (no var rebind)
-has_allowed_app    if { _ := allowed_app }
-has_allowed_tenant if { _ := allowed_tenant }
-has_derived_app    if { _ := derived_app }
-has_derived_tenant if { _ := derived_tenant }
+effective_app := ea if { _ := derived_app; ea := derived_app }
+effective_app := ea if { not derived_app; et := effective_tenant; ea := tenant_to_app[et] }
 
-# -------- effective values --------
-effective_app := ea if { has_allowed_app; ea := allowed_app }
-effective_app := ea if { not has_allowed_app; has_derived_app; ea := derived_app }
-
-effective_tenant := et if { has_allowed_tenant; et := allowed_tenant }
-effective_tenant := et if { not has_allowed_tenant; has_derived_tenant; et := derived_tenant }
-
-has_effective_app    if { _ := effective_app }
+has_effective_app if { _ := effective_app }
 has_effective_tenant if { _ := effective_tenant }
 
-# -------- enforce team→app pairing (this fixes your case) --------
-has_mapping_for_tenant if {
+# -------- enforce tenant→app pairing --------
+deny contains msg if {
+  not core_bypass
   has_effective_tenant
-  _ := tenant_to_app[effective_tenant]
+  not tenant_to_app[effective_tenant]
+  msg := sprintf("Tenant %q has no registered app mapping; configure tenant_to_app.", [effective_tenant])
 }
 
 deny contains msg if {
-  has_effective_tenant
-  not has_mapping_for_tenant
-  msg := sprintf("Tenant %q has no registered app mapping; configure tenant_to_app in policy (or add labels).", [effective_tenant])
-}
-
-deny contains msg if {
+  not core_bypass
   has_effective_tenant
   has_effective_app
   expected_app := tenant_to_app[effective_tenant]
   expected_app != effective_app
-  msg := sprintf("Team/app mismatch: tenant %q is paired with app %q, but changes target app %q.", [effective_tenant, expected_app, effective_app])
+  msg := sprintf("Team/app mismatch: tenant %q is paired with app %q, but PR touches app %q.", [effective_tenant, expected_app, effective_app])
 }
 
-# -------- conflicts / unknowns (labels vs derived) --------
+# -------- ambiguity checks --------
 deny contains msg if {
-  has_allowed_app
-  has_derived_app
-  la := allowed_app
-  da := derived_app
-  la != da
-  msg := sprintf("Label app:%s does not match changed files (apps/%s/**).", [la, da])
-}
-
-deny contains msg if {
-  has_allowed_tenant
-  has_derived_tenant
-  lt := allowed_tenant
-  dt := derived_tenant
-  lt != dt
-  msg := sprintf("Label tenant:%s does not match changed files (tenants/dev/%s/**).", [lt, dt])
-}
-
-deny contains msg if {
+  not core_bypass
   not has_effective_app
   count(apps_from_files) > 1
-  msg := sprintf("Multiple apps touched: %v. Add 'app:<slug>' label or limit the PR to one app.", [apps_from_files])
+  msg := sprintf("Multiple apps touched: %v. Limit PR to one app.", [apps_from_files])
 }
 deny contains msg if {
+  not core_bypass
   not has_effective_app
   count(apps_from_files) == 0
-  msg := "Cannot determine app from changes. Add label 'app:<slug>' or include files under apps/<slug>/"
+  msg := "Cannot determine app (from paths or actor team)."
 }
 
 deny contains msg if {
+  not core_bypass
   not has_effective_tenant
   count(tenants_from_files) > 1
-  msg := sprintf("Multiple dev tenants touched: %v. Add 'tenant:<slug>' label or limit the PR to one tenant.", [tenants_from_files])
+  msg := sprintf("Multiple dev tenants touched: %v. Limit PR to one tenant.", [tenants_from_files])
 }
 deny contains msg if {
+  not core_bypass
   not has_effective_tenant
   count(tenants_from_files) == 0
-  msg := "Cannot determine tenant from changes. Add label 'tenant:<slug>' or include files under tenants/dev/<slug>/"
+  msg := "Cannot determine tenant (from paths or actor team)."
 }
 
 # -------- prefixes & scope helpers --------
-app_prefix := ap if { has_effective_app;    ea := effective_app;    ap := sprintf("apps/%s/", [ea]) }
-tenant_prefix := tp if { has_effective_tenant; et := effective_tenant; tp := sprintf("tenants/dev/%s/", [et]) }
+app_prefix := ap if { has_effective_app; ap := sprintf("apps/%s/", [effective_app]) }
+tenant_prefix := tp if { has_effective_tenant; tp := sprintf("tenants/dev/%s/", [effective_tenant]) }
 
 prefix_set := s if {
   s1 := {p | p := app_prefix}
@@ -183,68 +133,63 @@ allowed_prefixes := arr if {
 file_in_scope(f) if {
   is_string(f)
   fp := norm_path(f)
-  ps := prefix_set
-  some p
-  ps[p]
+  some p; prefix_set[p]
   startswith(fp, p)
 }
 
-# -------- early denies (strict) --------
+# -------- denies --------
 deny contains msg if {
+  not core_bypass
   has_effective_app
   valid_files
   some f in input.files
-  is_string(f)
   fp := norm_path(f)
   startswith(fp, "apps/")
   not startswith(fp, sprintf("apps/%s/", [effective_app]))
-  msg := sprintf("App path out of scope: %s (expected under apps/%s/)", [fp, effective_app])
+  msg := sprintf("App path out of scope: %s (expected apps/%s/)", [fp, effective_app])
 }
 
 deny contains msg if {
+  not core_bypass
   has_effective_tenant
   valid_files
   some f in input.files
-  is_string(f)
   fp := norm_path(f)
   startswith(fp, "tenants/dev/")
   not startswith(fp, sprintf("tenants/dev/%s/", [effective_tenant]))
-  msg := sprintf("Dev-tenant path out of scope: %s (expected under tenants/dev/%s/)", [fp, effective_tenant])
+  msg := sprintf("Tenant path out of scope: %s (expected tenants/dev/%s/)", [fp, effective_tenant])
 }
 
 deny contains msg if {
+  not core_bypass
   valid_files
   some f in input.files
-  is_string(f)
   startswith(norm_path(f), "tenants/prod/")
-  msg := sprintf("Prod tenant path is not allowed in app-team PRs: %s", [f])
+  msg := sprintf("Prod tenant path is not allowed: %s", [f])
 }
 
-# -------- final out-of-scope guard --------
 deny contains msg if {
+  not core_bypass
   has_effective_app
   has_effective_tenant
   valid_files
   some f in input.files
-  is_string(f)
-  f != ""
   not file_in_scope(f)
   msg := sprintf("Out-of-scope change: %s (allowed prefixes: %v)", [f, allowed_prefixes])
 }
 
-# -------- debug (non-blocking) --------
-warn contains msg if { debug_enabled; msg := sprintf("[debug] labels=%v", [input.labels]) }
-warn contains msg if { debug_enabled; msg := sprintf("[debug] files=%v",  [input.files])  }
-warn contains msg if { debug_enabled; msg := sprintf("[debug] derived_app_set=%v",    [apps_from_files]) }
+# -------- debug --------
+warn contains msg if { debug_enabled; msg := sprintf("[debug] files=%v", [input.files]) }
+warn contains msg if { debug_enabled; msg := sprintf("[debug] actor_teams=%v", [input.actor_teams]) }
+warn contains msg if { debug_enabled; msg := sprintf("[debug] derived_app_set=%v", [apps_from_files]) }
 warn contains msg if { debug_enabled; msg := sprintf("[debug] derived_tenant_set=%v", [tenants_from_files]) }
-warn contains msg if { debug_enabled; has_effective_app;    msg := sprintf("[debug] effective_app=%v",    [effective_app]) }
+warn contains msg if { debug_enabled; has_effective_app; msg := sprintf("[debug] effective_app=%v", [effective_app]) }
 warn contains msg if { debug_enabled; has_effective_tenant; msg := sprintf("[debug] effective_tenant=%v", [effective_tenant]) }
-warn contains msg if { debug_enabled; allowed_prefixes;     msg := sprintf("[debug] allowed_prefixes=%v", [allowed_prefixes]) }
+warn contains msg if { debug_enabled; allowed_prefixes; msg := sprintf("[debug] allowed_prefixes=%v", [allowed_prefixes]) }
 warn contains msg if {
   debug_enabled
   valid_files
   some f in input.files
-  is_string(f)
   ins := file_in_scope(f)
   msg := sprintf("[debug] file=%s in_scope=%v", [f, ins])
 }
