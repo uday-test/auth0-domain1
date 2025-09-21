@@ -78,7 +78,7 @@ jobs:
                 MEMBERSHIPS+=("$slug")
               fi
             done
-            TEAMS_JSON="$(printf '%s\n' "${MEMBERSHIPS[@]:-}" | jq -R . | jq -sc.)"
+            TEAMS_JSON="$(printf '%s\n' "${MEMBERSHIPS[@]:-}" | jq -R . | jq -s -c .)"
           fi
 
           echo "Actor: $USER"
