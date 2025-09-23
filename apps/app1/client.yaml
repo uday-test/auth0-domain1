@@ -1,0 +1,13 @@
+client_name: app1
+app_type: regular_web
+grant_types:
+  - authorization_code
+  - refresh_token
+token_endpoint_auth_method: none   # PKCE
+oidc_conformant: true
+callbacks:
+  - https://dev.app1.example.com/callback
+web_origins:
+  - https://dev.app1.example.com
+allowed_logout_urls:
+  - https://dev.app1.example.com/logout
