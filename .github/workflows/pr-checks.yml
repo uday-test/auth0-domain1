@@ -19,7 +19,7 @@ jobs:
     name: Path Guard (Conftest)
     runs-on: ubuntu-latest
     env:
-      ORG_TOKEN: ${{ secrets.ORG_TOKEN }}  # optional org-level PAT (read:org) for team lookup
+      ORG_TOKEN: ${{ secrets.ORG_TOKEN }}    # optional: org PAT with read:org
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -42,24 +42,21 @@ jobs:
           echo "BASE=$BASE"
           echo "HEAD=$HEAD"
 
-      - name: Get changed files
+      - name: Get changed files → files.json
         id: changed
         shell: bash
         run: |
           set -Eeuo pipefail
           git diff --name-only "${{ steps.revs.outputs.base }}..${{ steps.revs.outputs.head }}" > /tmp/changed.txt || true
-          echo "Changed files:"
-          cat /tmp/changed.txt || true
+          echo "Changed files:"; cat /tmp/changed.txt || true
           jq -Rsn '[inputs | split("\n")[] | select(length>0)]' < /tmp/changed.txt > /tmp/files.json
-          echo "files.json:"
-          cat /tmp/files.json
+          echo "files.json:"; cat /tmp/files.json
 
       - name: Resolve actor teams (optional)
         id: teams
         shell: bash
         run: |
           set -Eeuo pipefail
-          : > /tmp/actor_teams.json
           if [ -n "${ORG_TOKEN:-}" ]; then
             API="https://api.github.com"
             ORG="${{ github.repository_owner }}"
@@ -72,8 +69,7 @@ jobs:
             echo "[]">/tmp/actor_teams.json
             echo "No ORG_TOKEN; proceeding with empty team set."
           fi
-          echo "actor_teams:"
-          cat /tmp/actor_teams.json
+          echo "actor_teams:"; cat /tmp/actor_teams.json
 
       - name: Build input.json for Path Guard
         id: input
@@ -85,26 +81,42 @@ jobs:
             --slurpfile teams /tmp/actor_teams.json \
             --argjson debug false \
             '{debug:$debug, files:$files[0], actor_teams:$teams[0]}' > input.json
-          echo "input.json:"
-          cat input.json
+          echo "input.json:"; cat input.json
 
-      - name: Install Conftest
+      - name: Print policy hash (debug)
+        shell: bash
+        run: |
+          set -e
+          sha256sum "${{ github.workspace }}/conftest-policy/path_guard.rego" || true
+          nl -ba "${{ github.workspace }}/conftest-policy/path_guard.rego" | sed -n '1,60p' || true
+
+      - name: Install Conftest (tried & true method)
         shell: bash
         run: |
           set -Eeuo pipefail
+          # Pin to a version that exists for both x86_64 and arm64; adjust if you want newer
+          VER="v0.62.0"
           ARCH="$(uname -m)"
           case "$ARCH" in
-            x86_64|amd64) CONTEST_ARCH="x86_64" ;;
-            aarch64|arm64) CONTEST_ARCH="arm64" ;;
+            x86_64|amd64) ASSET="conftest_${VER#v}_Linux_x86_64.tar.gz" ;;
+            aarch64|arm64) ASSET="conftest_${VER#v}_Linux_arm64.tar.gz" ;;
             *) echo "Unsupported arch: $ARCH" >&2; exit 1 ;;
           esac
-          VER="v0.56.0"  # pin to a known-good version
-          URL="https://github.com/open-policy-agent/conftest/releases/download/${VER}/conftest_Linux_${CONTEST_ARCH}.tar.gz"
-          echo "Downloading: $URL"
-          curl -sSfL "$URL" -o /tmp/conftest.tar.gz
-          file /tmp/conftest.tar.gz || true
-          sudo tar -C /usr/local/bin -xzf /tmp/conftest.tar.gz conftest
+          URL="https://github.com/open-policy-agent/conftest/releases/download/${VER}/${ASSET}"
+          echo "Downloading $URL"
+          curl -sSfL "$URL" | tar xz
+          sudo mv conftest /usr/local/bin/
           conftest --version
+
+      - name: Conftest verify (unit tests in conftest-policy/ if any)
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          if compgen -G "conftest-policy/*_test.rego" > /dev/null; then
+            conftest verify --policy "${{ github.workspace }}/conftest-policy"
+          else
+            echo "No *_test.rego in conftest-policy; skipping verify."
+          fi
 
       - name: Run Path Guard policy
         shell: bash
@@ -112,18 +124,19 @@ jobs:
           set -Eeuo pipefail
           conftest test \
             --namespace pr.pathguard \
-            --policy "./conftest-policy" \
-            "./input.json"
+            --policy "${{ github.workspace }}/conftest-policy" \
+            "${{ github.workspace }}/input.json"
 
-      - name: Upload inputs (artifact)
+      - name: Upload input.json (artifact)
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: conftest-input
           path: input.json
+          retention-days: 7
 
   auth0-policies:
-    name: Auth0 Policies (Conftest verify)
+    name: Auth0 Policies (Conftest)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -131,45 +144,41 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install Conftest
+      - name: Install Conftest (same method)
         shell: bash
         run: |
           set -Eeuo pipefail
+          VER="v0.62.0"
           ARCH="$(uname -m)"
           case "$ARCH" in
-            x86_64|amd64) CONTEST_ARCH="x86_64" ;;
-            aarch64|arm64) CONTEST_ARCH="arm64" ;;
+            x86_64|amd64) ASSET="conftest_${VER#v}_Linux_x86_64.tar.gz" ;;
+            aarch64|arm64) ASSET="conftest_${VER#v}_Linux_arm64.tar.gz" ;;
             *) echo "Unsupported arch: $ARCH" >&2; exit 1 ;;
           esac
-          VER="v0.56.0"
-          URL="https://github.com/open-policy-agent/conftest/releases/download/${VER}/conftest_Linux_${CONTEST_ARCH}.tar.gz"
-          echo "Downloading: $URL"
-          curl -sSfL "$URL" -o /tmp/conftest.tar.gz
-          file /tmp/conftest.tar.gz || true
-          sudo tar -C /usr/local/bin -xzf /tmp/conftest.tar.gz conftest
+          URL="https://github.com/open-policy-agent/conftest/releases/download/${VER}/${ASSET}"
+          echo "Downloading $URL"
+          curl -sSfL "$URL" | tar xz
+          sudo mv conftest /usr/local/bin/
           conftest --version
 
-      - name: Verify Rego unit tests (if present)
+      - name: Conftest verify (Auth0 policy tests)
         shell: bash
         run: |
           set -Eeuo pipefail
-          POLICY_DIR="base/policies/auth0-policy"
-          if [ -d "$POLICY_DIR" ]; then
-            if compgen -G "${POLICY_DIR}/*_test.rego" > /dev/null; then
-              conftest verify "$POLICY_DIR"
-            else
-              echo "No *_test.rego found in ${POLICY_DIR}; skipping conftest verify."
-            fi
+          DIR="base/policies/auth0-policy"
+          if [ -d "$DIR" ] && compgen -G "${DIR}/*_test.rego" > /dev/null; then
+            conftest verify "$DIR"
           else
-            echo "WARNING: ${POLICY_DIR} not found; skipping."
+            echo "No *_test.rego in $DIR; skipping verify."
           fi
 
-      - name: Optional policy smoke test with empty input
+      - name: Optional smoke test (empty input)
         shell: bash
         run: |
           set -Eeuo pipefail
-          POLICY_DIR="base/policies/auth0-policy"
-          if [ -d "$POLICY_DIR" ]; then
+          DIR="base/policies/auth0-policy"
+          if [ -d "$DIR" ]; then
             echo '{}' > /tmp/empty.json
-            conftest test --policy "$POLICY_DIR" /tmp/empty.json || true
+            # If your package has deny rules, this will print them; ignore exit code for smoke.
+            conftest test --policy "$DIR" /tmp/empty.json || true
           fi
