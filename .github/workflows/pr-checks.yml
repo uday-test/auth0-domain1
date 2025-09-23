@@ -65,8 +65,7 @@ jobs:
             ORG="${{ github.repository_owner }}"
             HDR="Authorization: Bearer $ORG_TOKEN"
             ACC="Accept: application/vnd.github+json"
-            # list teams of token user, filter to current org, get slugs
-            curl -fsSL -H "$HDR" -H "$ACC" "$API/user/teams?per_page=100" \
+            curl -sSfL -H "$HDR" -H "$ACC" "$API/user/teams?per_page=100" \
               | jq --arg ORG "$ORG" '[.[] | select(.organization.login==$ORG) | .slug | ascii_downcase]' \
               > /tmp/actor_teams.json || echo "[]">/tmp/actor_teams.json
           else
@@ -93,8 +92,18 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          curl -sSL https://github.com/open-policy-agent/conftest/releases/latest/download/conftest_Linux_x86_64.tar.gz -o /tmp/conftest.tgz
-          sudo tar -C /usr/local/bin -xzf /tmp/conftest.tgz conftest
+          ARCH="$(uname -m)"
+          case "$ARCH" in
+            x86_64|amd64) CONTEST_ARCH="x86_64" ;;
+            aarch64|arm64) CONTEST_ARCH="arm64" ;;
+            *) echo "Unsupported arch: $ARCH" >&2; exit 1 ;;
+          esac
+          VER="v0.56.0"  # pin to a known-good version
+          URL="https://github.com/open-policy-agent/conftest/releases/download/${VER}/conftest_Linux_${CONTEST_ARCH}.tar.gz"
+          echo "Downloading: $URL"
+          curl -sSfL "$URL" -o /tmp/conftest.tar.gz
+          file /tmp/conftest.tar.gz || true
+          sudo tar -C /usr/local/bin -xzf /tmp/conftest.tar.gz conftest
           conftest --version
 
       - name: Run Path Guard policy
@@ -126,8 +135,18 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          curl -sSL https://github.com/open-policy-agent/conftest/releases/latest/download/conftest_Linux_x86_64.tar.gz -o /tmp/conftest.tgz
-          sudo tar -C /usr/local/bin -xzf /tmp/conftest.tgz conftest
+          ARCH="$(uname -m)"
+          case "$ARCH" in
+            x86_64|amd64) CONTEST_ARCH="x86_64" ;;
+            aarch64|arm64) CONTEST_ARCH="arm64" ;;
+            *) echo "Unsupported arch: $ARCH" >&2; exit 1 ;;
+          esac
+          VER="v0.56.0"
+          URL="https://github.com/open-policy-agent/conftest/releases/download/${VER}/conftest_Linux_${CONTEST_ARCH}.tar.gz"
+          echo "Downloading: $URL"
+          curl -sSfL "$URL" -o /tmp/conftest.tar.gz
+          file /tmp/conftest.tar.gz || true
+          sudo tar -C /usr/local/bin -xzf /tmp/conftest.tar.gz conftest
           conftest --version
 
       - name: Verify Rego unit tests (if present)
@@ -136,7 +155,6 @@ jobs:
           set -Eeuo pipefail
           POLICY_DIR="base/policies/auth0-policy"
           if [ -d "$POLICY_DIR" ]; then
-            # conftest verify runs Rego unit tests (same as `opa test`) found under POLICY_DIR
             if compgen -G "${POLICY_DIR}/*_test.rego" > /dev/null; then
               conftest verify "$POLICY_DIR"
             else
@@ -153,7 +171,5 @@ jobs:
           POLICY_DIR="base/policies/auth0-policy"
           if [ -d "$POLICY_DIR" ]; then
             echo '{}' > /tmp/empty.json
-            # If your Auth0 policy package exposes rules expecting input, you can point tests at /tmp/empty.json
-            # Adjust namespace if you have a package name (e.g., package auth0.policy)
             conftest test --policy "$POLICY_DIR" /tmp/empty.json || true
           fi
