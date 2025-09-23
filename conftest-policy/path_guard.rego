@@ -32,8 +32,7 @@ core_bypass if { some t; actor_team_set[t]; core_teams[t] }
 # -------- derive from files --------
 apps_from_files := s if {
   valid_files
-  s := {a |
-    some f in input.files
+  s := {a | some f in input.files
     is_string(f)
     seg := split(norm_path(f), "/")
     count(seg) >= 2
@@ -45,8 +44,7 @@ apps_from_files := s if {
 
 tenants_from_files := s if {
   valid_files
-  s := {t |
-    some f in input.files
+  s := {t | some f in input.files
     is_string(f)
     seg := split(norm_path(f), "/")
     count(seg) >= 3
@@ -140,7 +138,6 @@ file_in_scope(f) if {
 # -------- denies --------
 deny contains msg if {
   not core_bypass
-  has_effective_app
   valid_files
   some f in input.files
   fp := norm_path(f)
@@ -148,10 +145,8 @@ deny contains msg if {
   not startswith(fp, sprintf("apps/%s/", [effective_app]))
   msg := sprintf("App path out of scope: %s (expected apps/%s/)", [fp, effective_app])
 }
-
 deny contains msg if {
   not core_bypass
-  has_effective_tenant
   valid_files
   some f in input.files
   fp := norm_path(f)
@@ -159,7 +154,6 @@ deny contains msg if {
   not startswith(fp, sprintf("tenants/dev/%s/", [effective_tenant]))
   msg := sprintf("Tenant path out of scope: %s (expected tenants/dev/%s/)", [fp, effective_tenant])
 }
-
 deny contains msg if {
   not core_bypass
   valid_files
@@ -170,26 +164,14 @@ deny contains msg if {
 
 deny contains msg if {
   not core_bypass
-  has_effective_app
-  has_effective_tenant
   valid_files
   some f in input.files
-  not file_in_scope(f)
+  not startswith(norm_path(f), "apps/")
+  not startswith(norm_path(f), "tenants/dev/")
+  not startswith(norm_path(f), "tenants/qa/")
+  not startswith(norm_path(f), "tenants/prod/")
+  not startswith(norm_path(f), "base/")
+  not startswith(norm_path(f), "overlays/")
+  not startswith(norm_path(f), "conftest-policy/")
   msg := sprintf("Out-of-scope change: %s (allowed prefixes: %v)", [f, allowed_prefixes])
-}
-
-# -------- debug --------
-warn contains msg if { debug_enabled; msg := sprintf("[debug] files=%v", [input.files]) }
-warn contains msg if { debug_enabled; msg := sprintf("[debug] actor_teams=%v", [input.actor_teams]) }
-warn contains msg if { debug_enabled; msg := sprintf("[debug] derived_app_set=%v", [apps_from_files]) }
-warn contains msg if { debug_enabled; msg := sprintf("[debug] derived_tenant_set=%v", [tenants_from_files]) }
-warn contains msg if { debug_enabled; has_effective_app; msg := sprintf("[debug] effective_app=%v", [effective_app]) }
-warn contains msg if { debug_enabled; has_effective_tenant; msg := sprintf("[debug] effective_tenant=%v", [effective_tenant]) }
-warn contains msg if { debug_enabled; allowed_prefixes; msg := sprintf("[debug] allowed_prefixes=%v", [allowed_prefixes]) }
-warn contains msg if {
-  debug_enabled
-  valid_files
-  some f in input.files
-  ins := file_in_scope(f)
-  msg := sprintf("[debug] file=%s in_scope=%v", [f, ins])
 }
