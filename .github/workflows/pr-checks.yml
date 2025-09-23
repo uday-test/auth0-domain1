@@ -88,13 +88,12 @@ jobs:
         run: |
           set -e
           sha256sum "${{ github.workspace }}/conftest-policy/path_guard.rego" || true
-          nl -ba "${{ github.workspace }}/conftest-policy/path_guard.rego" | sed -n '1,60p' || true
+          nl -ba "${{ github.workspace }}/conftest-policy/path_guard.rego" | sed -n '1,80p' || true
 
-      - name: Install Conftest (tried & true method)
+      - name: Install Conftest (pinned, curl | tar)
         shell: bash
         run: |
           set -Eeuo pipefail
-          # Pin to a version that exists for both x86_64 and arm64; adjust if you want newer
           VER="v0.62.0"
           ARCH="$(uname -m)"
           case "$ARCH" in
@@ -161,7 +160,7 @@ jobs:
           sudo mv conftest /usr/local/bin/
           conftest --version
 
-      - name: Conftest verify (Auth0 policy tests)
+      - name: Conftest verify (Auth0 policy unit tests if present)
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -172,13 +171,32 @@ jobs:
             echo "No *_test.rego in $DIR; skipping verify."
           fi
 
-      - name: Optional smoke test (empty input)
+      - name: Conftest test on changed Auth0 YAMLs (uses --namespace auth0.policy)
         shell: bash
         run: |
           set -Eeuo pipefail
-          DIR="base/policies/auth0-policy"
-          if [ -d "$DIR" ]; then
-            echo '{}' > /tmp/empty.json
-            # If your package has deny rules, this will print them; ignore exit code for smoke.
-            conftest test --policy "$DIR" /tmp/empty.json || true
+
+          # compute base/head for this PR
+          BASE="${{ github.event.pull_request.base.sha || '' }}"
+          HEAD="${{ github.event.pull_request.head.sha || github.sha }}"
+          if [ -z "$BASE" ]; then
+            git fetch origin main
+            BASE="$(git rev-parse origin/main)"
           fi
+
+          # select YAMLs under apps/*/(auth0/)?...*.yml|yaml
+          mapfile -t FILES < <(git diff --name-only "$BASE..$HEAD" \
+            | grep -E '^apps/[^/]+/(auth0/)?[^/]+\.(ya?ml)$' || true)
+
+          if [ "${#FILES[@]}" -eq 0 ]; then
+            echo "No Auth0 YAML changes; skipping conftest test."
+            exit 0
+          fi
+
+          echo "Testing files:"
+          printf ' - %s\n' "${FILES[@]}"
+
+          conftest test \
+            --namespace auth0.policy \
+            --policy base/policies/auth0-policy \
+            "${FILES[@]}"
