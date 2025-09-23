@@ -2,6 +2,5 @@ mfa:
 enabled: true
 enrollment: required
 factors:
-- otp
-- push
-- webauthn
+    - authenticator_app
+    - webauthn-roaming
