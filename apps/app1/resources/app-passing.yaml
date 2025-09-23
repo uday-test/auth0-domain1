@@ -1,0 +1,7 @@
+name: "app1-web-config"
+app_type: "regular_web"
+grant_types:
+  - "authorization_code"
+  - "implicit"
+  - "refresh_token"
+id_token_lifetime: 300

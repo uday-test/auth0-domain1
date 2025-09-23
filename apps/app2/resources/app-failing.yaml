@@ -1,0 +1,7 @@
+name: "app2-native-config"
+app_type: "native"
+grant_types:
+  - "authorization_code"
+  - "implicit"
+  - "password"
+id_token_lifetime: 1200
