@@ -3,7 +3,7 @@ app_type: native
 grant_types:
   - authorization_code
   - refresh_token
-token_endpoint_auth_method: none   # PKssCE
+token_endpoint_auth_method: none   # must rejectss this tage
 oidc_conformant: true
 callbacks:
   - https://dev.app1.example.com/callback
