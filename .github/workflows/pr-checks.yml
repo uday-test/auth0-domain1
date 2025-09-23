@@ -21,7 +21,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with: { fetch-depth: 0 }
+        with:
+          fetch-depth: 0
 
       - name: Determine base & head
         id: revs
@@ -48,7 +49,8 @@ jobs:
           echo "changed<<EOF" >> "$GITHUB_OUTPUT"
           echo "$CHANGED" >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
-          echo "Changed files:"; echo "$CHANGED"
+          echo "Changed files:"
+          echo "$CHANGED"
 
       - name: Resolve actor team slugs
         id: teams
@@ -78,7 +80,8 @@ jobs:
             TEAMS_JSON="$(printf '%s\n' "${MEMBERSHIPS[@]:-}" | jq -R . | jq -s -c .)"
           fi
           echo "Actor: $USER"
-          echo "Actor team slugs:"; echo "$TEAMS_JSON" | jq .
+          echo "Actor team slugs:"
+          echo "$TEAMS_JSON" | jq .
           echo "::endgroup::"
           echo "actor_teams=$TEAMS_JSON" >> "$GITHUB_OUTPUT"
 
@@ -95,19 +98,20 @@ jobs:
               actor_teams = []
           data = {"files": files, "actor_teams": actor_teams, "debug": True}
           with open("input.json","w", encoding="utf-8") as fh: json.dump(data, fh, indent=2)
-          print("----- input.json -----"); print(json.dumps(data, indent=2))
+          print("----- input.json -----")
+          print(json.dumps(data, indent=2))
           PY
         env:
           FILES:       ${{ steps.changed.outputs.changed }}
           ACTOR_TEAMS: ${{ steps.teams.outputs.actor_teams }}
 
-      - name: Guard: ensure path_guard.rego exists
+      - name: Guard ensure path_guard.rego exists
         shell: bash
         run: |
           set -Eeuo pipefail
           COUNT=$(find "${{ github.workspace }}/conftest-policy" -type f -name '*.rego' | wc -l || true)
           if [ "$COUNT" -eq 0 ]; then
-            echo "::error::No .rego files found under conftest-policy/.";
+            echo "::error::No .rego files found under conftest-policy/."
             exit 1
           fi
           echo "Found $COUNT rego file(s)."
@@ -118,7 +122,8 @@ jobs:
           echo "pwd: $(pwd)"
           echo "--- rego files (<= depth 3) ---"
           find . -maxdepth 3 -type f -name "*.rego" -print || true
-          echo "--- input.json ---"; cat input.json || true
+          echo "--- input.json ---"
+          cat input.json || true
 
       - name: Print path guard policy hash
         shell: bash
@@ -132,7 +137,8 @@ jobs:
         run: |
           curl -L https://github.com/open-policy-agent/conftest/releases/download/v0.62.0/conftest_0.62.0_Linux_x86_64.tar.gz | tar xz
           sudo mv conftest /usr/local/bin/
-          which conftest; conftest --version
+          which conftest
+          conftest --version
 
       - name: Conftest verify (path guard)
         shell: bash
@@ -157,7 +163,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with: { fetch-depth: 0 }
+        with:
+          fetch-depth: 0
 
       - name: Determine base & head
         id: revs
@@ -182,7 +189,8 @@ jobs:
           echo "changed<<EOF" >> "$GITHUB_OUTPUT"
           echo "$CHANGED" >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
-          echo "Changed files:"; echo "$CHANGED"
+          echo "Changed files:"
+          echo "$CHANGED"
 
       - name: Select Auth0 resource targets
         id: targets
@@ -193,9 +201,10 @@ jobs:
           grep -E '^(apps/[^/]+/resources/).*\.(ya?ml|json)$' /tmp/changed.txt > /tmp/targets.txt || true
           COUNT="$(wc -l < /tmp/targets.txt | tr -d ' ')"
           echo "count=$COUNT" >> "$GITHUB_OUTPUT"
-          echo "Targets ($COUNT):"; cat /tmp/targets.txt || true
+          echo "Targets ($COUNT):"
+          cat /tmp/targets.txt || true
 
-      - name: Guard: ensure auth0.policy exists
+      - name: Guard ensure auth0.policy exists
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -213,7 +222,8 @@ jobs:
         run: |
           curl -L https://github.com/open-policy-agent/conftest/releases/download/v0.62.0/conftest_0.62.0_Linux_x86_64.tar.gz | tar xz
           sudo mv conftest /usr/local/bin/
-          which conftest; conftest --version
+          which conftest
+          conftest --version
 
       - name: Conftest verify (auth0 baseline)
         shell: bash
