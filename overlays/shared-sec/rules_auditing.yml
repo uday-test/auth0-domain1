@@ -1,0 +1,8 @@
+rules:
+  - name: log_user_login
+    order: 0
+    script: |-
+      function (user, context, callback) {
+        console.log("Login event:", user.user_id, context.request.ip);
+        callback(null, user, context);
+      }

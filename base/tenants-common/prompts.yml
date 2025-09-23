@@ -1,0 +1,8 @@
+prompts:
+login:
+title: "Sign in to {tenant}"
+subtitle: "{env | upper} environment"
+universal_login:
+branding:
+primary_color: "#0055AA"
+logo_url: "https://example.com/logo.png"

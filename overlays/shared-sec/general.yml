@@ -1,0 +1,11 @@
+general:
+allowed_logout_urls:
+- "https://enterprise-secure-logout.com"
+- "https://{base_url}/logout"
+
+
+tokens:
+refresh:
+lifetime_days: 90
+inactivity_days: 30
+leeway_days: 7

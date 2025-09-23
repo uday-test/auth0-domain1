@@ -1,0 +1,18 @@
+env: prod
+tenant: tenantA
+prompts:
+universal_login:
+branding:
+primary_color: "#0CA678" # prod-green
+
+
+# prod tightens TTLs beyond the shared-sec defaults
+session:
+idle_timeout_minutes: 20
+absolute_timeout_hours: 12
+
+
+tokens:
+access_token_ttl: 1800 # 30m
+id_token_ttl: 1800 # 30m
+refresh_token_ttl: 1209600 # 14d (keep default)

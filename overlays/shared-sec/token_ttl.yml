@@ -1,0 +1,10 @@
+# Defaults which envs may override
+session:
+idle_timeout_minutes: 30
+absolute_timeout_hours: 24
+
+
+tokens:
+access_token_ttl: 3600 # 1h
+id_token_ttl: 3600 # 1h
+refresh_token_ttl: 1209600 # 14d
