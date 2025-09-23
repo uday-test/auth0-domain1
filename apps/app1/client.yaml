@@ -1,5 +1,5 @@
 client_name: app1
-app_type: regular_web
+app_type: native
 grant_types:
   - authorization_code
   - refresh_token
