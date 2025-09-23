@@ -1,9 +1,9 @@
-name: Path Guard (Conftest)
+name: PR Policy Checks (Conftest)
 
 on:
   pull_request:
     branches: [ main ]
-    types: [opened, reopened, synchronize, edited]
+    types: [ opened, reopened, synchronize, edited ]
   workflow_dispatch:
 
 permissions:
@@ -16,12 +16,12 @@ concurrency:
 
 jobs:
   path-guard:
+    name: Path Guard (Conftest)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+        with: { fetch-depth: 0 }
 
       - name: Determine base & head
         id: revs
@@ -48,14 +48,13 @@ jobs:
           echo "changed<<EOF" >> "$GITHUB_OUTPUT"
           echo "$CHANGED" >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
-          echo "Changed files:"
-          echo "$CHANGED"
+          echo "Changed files:"; echo "$CHANGED"
 
       - name: Resolve actor team slugs
         id: teams
         shell: bash
         env:
-          ORG_TOKEN: ${{ secrets.ORG_TOKEN }}   # Needs read:org scope
+          ORG_TOKEN: ${{ secrets.ORG_TOKEN }}   # Token with read:org
         run: |
           set -Eeuo pipefail
           API="https://api.github.com"
@@ -74,18 +73,13 @@ jobs:
             for slug in "${ALL_SLUGS[@]}"; do
               [ -z "$slug" ] && continue
               code="$(curl -s -o /dev/null -w '%{http_code}' -H "$HDR" -H "$ACC" "$API/orgs/$ORG/teams/$slug/memberships/$USER")"
-              if [ "$code" = "200" ]; then
-                MEMBERSHIPS+=("$slug")
-              fi
+              [ "$code" = "200" ] && MEMBERSHIPS+=("$slug")
             done
             TEAMS_JSON="$(printf '%s\n' "${MEMBERSHIPS[@]:-}" | jq -R . | jq -s -c .)"
           fi
-
           echo "Actor: $USER"
-          echo "Actor team slugs:"
-          echo "$TEAMS_JSON" | jq .
+          echo "Actor team slugs:"; echo "$TEAMS_JSON" | jq .
           echo "::endgroup::"
-
           echo "actor_teams=$TEAMS_JSON" >> "$GITHUB_OUTPUT"
 
       - name: Create Conftest input
@@ -96,27 +90,24 @@ jobs:
           files  = [f.strip() for f in os.environ.get("FILES","").splitlines() if f.strip()]
           try:
               actor_teams = json.loads(os.environ.get("ACTOR_TEAMS","[]"))
-              if not isinstance(actor_teams, list):
-                  actor_teams = []
+              if not isinstance(actor_teams, list): actor_teams = []
           except Exception:
               actor_teams = []
           data = {"files": files, "actor_teams": actor_teams, "debug": True}
-          with open("input.json","w", encoding="utf-8") as fh:
-              json.dump(data, fh, indent=2)
-          print("----- input.json -----")
-          print(json.dumps(data, indent=2))
+          with open("input.json","w", encoding="utf-8") as fh: json.dump(data, fh, indent=2)
+          print("----- input.json -----"); print(json.dumps(data, indent=2))
           PY
         env:
           FILES:       ${{ steps.changed.outputs.changed }}
           ACTOR_TEAMS: ${{ steps.teams.outputs.actor_teams }}
 
-      - name: "Guard: ensure .rego policy exists"
+      - name: Guard: ensure path_guard.rego exists
         shell: bash
         run: |
           set -Eeuo pipefail
           COUNT=$(find "${{ github.workspace }}/conftest-policy" -type f -name '*.rego' | wc -l || true)
           if [ "$COUNT" -eq 0 ]; then
-            echo "::error::No .rego files found under conftest-policy/. Check the path or filename."
+            echo "::error::No .rego files found under conftest-policy/.";
             exit 1
           fi
           echo "Found $COUNT rego file(s)."
@@ -127,25 +118,23 @@ jobs:
           echo "pwd: $(pwd)"
           echo "--- rego files (<= depth 3) ---"
           find . -maxdepth 3 -type f -name "*.rego" -print || true
-          echo "--- input.json ---"
-          cat input.json || true
+          echo "--- input.json ---"; cat input.json || true
 
-      - name: Print policy hash
+      - name: Print path guard policy hash
         shell: bash
         run: |
           set -e
           sha256sum "${{ github.workspace }}/conftest-policy/path_guard.rego" || true
-          nl -ba "${{ github.workspace }}/conftest-policy/path_guard.rego" | sed -n '1,60p'
+          nl -ba "${{ github.workspace }}/conftest-policy/path_guard.rego" | sed -n '1,80p'
 
       - name: Install Conftest
         shell: bash
         run: |
           curl -L https://github.com/open-policy-agent/conftest/releases/download/v0.62.0/conftest_0.62.0_Linux_x86_64.tar.gz | tar xz
           sudo mv conftest /usr/local/bin/
-          which conftest
-          conftest --version
+          which conftest; conftest --version
 
-      - name: Conftest verify
+      - name: Conftest verify (path guard)
         shell: bash
         run: conftest verify --policy "${{ github.workspace }}/conftest-policy"
 
@@ -164,12 +153,11 @@ jobs:
   auth0-baseline:
     name: Auth0 Baseline (Conftest)
     runs-on: ubuntu-latest
-    needs: [path-guard]  # optional; remove if you want parallel runs
+    needs: [ path-guard ]   # keep if you want sequential; remove to run in parallel
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+        with: { fetch-depth: 0 }
 
       - name: Determine base & head
         id: revs
@@ -184,8 +172,6 @@ jobs:
           fi
           echo "base=$BASE" >> "$GITHUB_OUTPUT"
           echo "head=$HEAD" >> "$GITHUB_OUTPUT"
-          echo "Base: $BASE"
-          echo "Head: $HEAD"
 
       - name: Compute changed files
         id: changed
@@ -196,30 +182,20 @@ jobs:
           echo "changed<<EOF" >> "$GITHUB_OUTPUT"
           echo "$CHANGED" >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
-          echo "Changed files:"
-          echo "$CHANGED"
+          echo "Changed files:"; echo "$CHANGED"
 
       - name: Select Auth0 resource targets
         id: targets
         shell: bash
         run: |
           set -Eeuo pipefail
-
-          # Write changed file list (strip CRs to avoid weird parsing on Windows-origin commits)
           printf '%s\n' "${{ steps.changed.outputs.changed }}" | tr -d '\r' | awk 'NF' > /tmp/changed.txt
-
-          # Adjust the regex if your resources live elsewhere
           grep -E '^(apps/[^/]+/resources/).*\.(ya?ml|json)$' /tmp/changed.txt > /tmp/targets.txt || true
-
           COUNT="$(wc -l < /tmp/targets.txt | tr -d ' ')"
-          {
-            echo "count=${COUNT}"
-          } >> "$GITHUB_OUTPUT"
+          echo "count=$COUNT" >> "$GITHUB_OUTPUT"
+          echo "Targets ($COUNT):"; cat /tmp/targets.txt || true
 
-          echo "Targets (${COUNT}):"
-          cat /tmp/targets.txt || true
-
-      - name: Guard ensure auth0.policy exists
+      - name: Guard: ensure auth0.policy exists
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -237,8 +213,7 @@ jobs:
         run: |
           curl -L https://github.com/open-policy-agent/conftest/releases/download/v0.62.0/conftest_0.62.0_Linux_x86_64.tar.gz | tar xz
           sudo mv conftest /usr/local/bin/
-          which conftest
-          conftest --version
+          which conftest; conftest --version
 
       - name: Conftest verify (auth0 baseline)
         shell: bash
