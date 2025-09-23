@@ -198,8 +198,7 @@ jobs:
           echo "EOF" >> "$GITHUB_OUTPUT"
           echo "Changed files:"
           echo "$CHANGED"
-          
-          
+
       - name: Select Auth0 resource targets
         id: targets
         shell: bash
@@ -219,7 +218,8 @@ jobs:
 
           echo "Targets (${COUNT}):"
           cat /tmp/targets.txt || true
-      - name: Guard: ensure auth0.policy exists
+
+      - name: Guard ensure auth0.policy exists
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -231,7 +231,6 @@ jobs:
           echo "Found policy at $REGOROOT/auth0.policy.rego"
           echo "--- policy head ---"
           nl -ba "$REGOROOT/auth0.policy.rego" | sed -n '1,80p'
-
 
       - name: Install Conftest
         shell: bash
