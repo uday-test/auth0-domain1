@@ -3,7 +3,7 @@ name: Path Guard (Conftest)
 on:
   pull_request:
     branches: [ main ]
-    types: [opened, reopened, synchronize, edited, labeled, unlabeled]
+    types: [opened, reopened, synchronize, edited]
   workflow_dispatch:
 
 permissions:
@@ -51,36 +51,68 @@ jobs:
           echo "Changed files:"
           echo "$CHANGED"
 
-      - name: Collect PR labels (optional)
-        id: labels
+      - name: Resolve actor team slugs
+        id: teams
         shell: bash
+        env:
+          ORG_TOKEN: ${{ secrets.ORG_TOKEN }}   # Needs read:org scope
         run: |
-          jq -r '.pull_request.labels[].name' < "$GITHUB_EVENT_PATH" | tr -d '\r' > /tmp/labels.txt || true
-          echo "labels<<EOF" >> "$GITHUB_OUTPUT"
-          cat /tmp/labels.txt >> "$GITHUB_OUTPUT"
-          echo "EOF" >> "$GITHUB_OUTPUT"
-          echo "PR labels:"; cat /tmp/labels.txt || true
+          set -Eeuo pipefail
+          API="https://api.github.com"
+          ORG="${{ github.repository_owner }}"
+          USER="${{ github.actor }}"
+          HDR="Authorization: Bearer $ORG_TOKEN"
+          ACC="Accept: application/vnd.github+json"
+
+          echo "::group::Resolve actor team slugs"
+          if [ -z "${ORG_TOKEN:-}" ]; then
+            echo "ORG_TOKEN not set. Skipping team lookup."
+            TEAMS_JSON="[]"
+          else
+            mapfile -t ALL_SLUGS < <(curl -sS -H "$HDR" -H "$ACC" "$API/orgs/$ORG/teams?per_page=100" | jq -r '.[].slug')
+            MEMBERSHIPS=()
+            for slug in "${ALL_SLUGS[@]}"; do
+              [ -z "$slug" ] && continue
+              code="$(curl -s -o /dev/null -w '%{http_code}' -H "$HDR" -H "$ACC" "$API/orgs/$ORG/teams/$slug/memberships/$USER")"
+              if [ "$code" = "200" ]; then
+                MEMBERSHIPS+=("$slug")
+              fi
+            done
+            TEAMS_JSON="$(printf '%s\n' "${MEMBERSHIPS[@]:-}" | jq -R . | jq -s -c .)"
+          fi
+
+          echo "Actor: $USER"
+          echo "Actor team slugs:"
+          echo "$TEAMS_JSON" | jq .
+          echo "::endgroup::"
+
+          echo "actor_teams=$TEAMS_JSON" >> "$GITHUB_OUTPUT"
 
       - name: Create Conftest input
         shell: bash
         run: |
           python3 - << 'PY'
           import json, os
-          files  = [f.strip() for f in os.environ.get("FILES","").splitlines()  if f.strip()]
-          labels = [l.strip() for l in os.environ.get("LABELS","").splitlines() if l.strip()]
+          files  = [f.strip() for f in os.environ.get("FILES","").splitlines() if f.strip()]
+          try:
+              actor_teams = json.loads(os.environ.get("ACTOR_TEAMS","[]"))
+              if not isinstance(actor_teams, list):
+                  actor_teams = []
+          except Exception:
+              actor_teams = []
           data = {
-            "files":  files,
-            "labels": labels,
-            "debug":  False   # set True to force [debug] WARNs
+            "files":       files,
+            "actor_teams": actor_teams,
+            "debug":       True
           }
           with open("input.json","w", encoding="utf-8") as fh:
-            json.dump(data, fh, indent=2)
+              json.dump(data, fh, indent=2)
           print("----- input.json -----")
           print(json.dumps(data, indent=2))
           PY
         env:
-          FILES:  ${{ steps.changed.outputs.changed }}
-          LABELS: ${{ steps.labels.outputs.labels }}
+          FILES:       ${{ steps.changed.outputs.changed }}
+          ACTOR_TEAMS: ${{ steps.teams.outputs.actor_teams }}
 
       - name: "Guard: ensure .rego policy exists"
         shell: bash
@@ -102,7 +134,7 @@ jobs:
           echo "--- input.json ---"
           cat input.json || true
 
-      - name: Print policy hash (which policy did we run?)
+      - name: Print policy hash
         shell: bash
         run: |
           set -e
