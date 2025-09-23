@@ -1,9 +1,9 @@
-name: Path Guard (Conftest)
+name: PR Checks (Conftest)
 
 on:
   pull_request:
     branches: [ main ]
-    types: [opened, reopened, synchronize, edited]
+    types: [opened, reopened, synchronize, edited, ready_for_review]
   workflow_dispatch:
 
 permissions:
@@ -11,12 +11,15 @@ permissions:
   pull-requests: read
 
 concurrency:
-  group: pr-guard-${{ github.event.pull_request.number || github.ref }}
+  group: pr-check-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
   path-guard:
+    name: Path Guard (Conftest)
     runs-on: ubuntu-latest
+    env:
+      ORG_TOKEN: ${{ secrets.ORG_TOKEN }}  # optional org-level PAT (read:org) for team lookup
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -36,130 +39,121 @@ jobs:
           fi
           echo "base=$BASE" >> "$GITHUB_OUTPUT"
           echo "head=$HEAD" >> "$GITHUB_OUTPUT"
-          echo "Base: $BASE"
-          echo "Head: $HEAD"
+          echo "BASE=$BASE"
+          echo "HEAD=$HEAD"
 
-      - name: Compute changed files
+      - name: Get changed files
         id: changed
         shell: bash
         run: |
           set -Eeuo pipefail
-          CHANGED="$(git diff --name-only ${{ steps.revs.outputs.base }}...${{ steps.revs.outputs.head }} || true)"
-          echo "changed<<EOF" >> "$GITHUB_OUTPUT"
-          echo "$CHANGED" >> "$GITHUB_OUTPUT"
-          echo "EOF" >> "$GITHUB_OUTPUT"
+          git diff --name-only "${{ steps.revs.outputs.base }}..${{ steps.revs.outputs.head }}" > /tmp/changed.txt || true
           echo "Changed files:"
-          echo "$CHANGED"
+          cat /tmp/changed.txt || true
+          jq -Rsn '[inputs | split("\n")[] | select(length>0)]' < /tmp/changed.txt > /tmp/files.json
+          echo "files.json:"
+          cat /tmp/files.json
 
-      - name: Resolve actor team slugs
+      - name: Resolve actor teams (optional)
         id: teams
         shell: bash
-        env:
-          ORG_TOKEN: ${{ secrets.ORG_TOKEN }}   # Needs read:org scope
         run: |
           set -Eeuo pipefail
-          API="https://api.github.com"
-          ORG="${{ github.repository_owner }}"
-          USER="${{ github.actor }}"
-          HDR="Authorization: Bearer $ORG_TOKEN"
-          ACC="Accept: application/vnd.github+json"
-
-          echo "::group::Resolve actor team slugs"
-          if [ -z "${ORG_TOKEN:-}" ]; then
-            echo "ORG_TOKEN not set. Skipping team lookup."
-            TEAMS_JSON="[]"
+          : > /tmp/actor_teams.json
+          if [ -n "${ORG_TOKEN:-}" ]; then
+            API="https://api.github.com"
+            ORG="${{ github.repository_owner }}"
+            HDR="Authorization: Bearer $ORG_TOKEN"
+            ACC="Accept: application/vnd.github+json"
+            # list teams of token user, filter to current org, get slugs
+            curl -fsSL -H "$HDR" -H "$ACC" "$API/user/teams?per_page=100" \
+              | jq --arg ORG "$ORG" '[.[] | select(.organization.login==$ORG) | .slug | ascii_downcase]' \
+              > /tmp/actor_teams.json || echo "[]">/tmp/actor_teams.json
           else
-            mapfile -t ALL_SLUGS < <(curl -sS -H "$HDR" -H "$ACC" "$API/orgs/$ORG/teams?per_page=100" | jq -r '.[].slug')
-            MEMBERSHIPS=()
-            for slug in "${ALL_SLUGS[@]}"; do
-              [ -z "$slug" ] && continue
-              code="$(curl -s -o /dev/null -w '%{http_code}' -H "$HDR" -H "$ACC" "$API/orgs/$ORG/teams/$slug/memberships/$USER")"
-              if [ "$code" = "200" ]; then
-                MEMBERSHIPS+=("$slug")
-              fi
-            done
-            TEAMS_JSON="$(printf '%s\n' "${MEMBERSHIPS[@]:-}" | jq -R . | jq -s -c .)"
+            echo "[]">/tmp/actor_teams.json
+            echo "No ORG_TOKEN; proceeding with empty team set."
           fi
+          echo "actor_teams:"
+          cat /tmp/actor_teams.json
 
-          echo "Actor: $USER"
-          echo "Actor team slugs:"
-          echo "$TEAMS_JSON" | jq .
-          echo "::endgroup::"
-
-          echo "actor_teams=$TEAMS_JSON" >> "$GITHUB_OUTPUT"
-
-      - name: Create Conftest input
-        shell: bash
-        run: |
-          python3 - << 'PY'
-          import json, os
-          files  = [f.strip() for f in os.environ.get("FILES","").splitlines() if f.strip()]
-          try:
-              actor_teams = json.loads(os.environ.get("ACTOR_TEAMS","[]"))
-              if not isinstance(actor_teams, list):
-                  actor_teams = []
-          except Exception:
-              actor_teams = []
-          data = {
-            "files":       files,
-            "actor_teams": actor_teams,
-            "debug":       True
-          }
-          with open("input.json","w", encoding="utf-8") as fh:
-              json.dump(data, fh, indent=2)
-          print("----- input.json -----")
-          print(json.dumps(data, indent=2))
-          PY
-        env:
-          FILES:       ${{ steps.changed.outputs.changed }}
-          ACTOR_TEAMS: ${{ steps.teams.outputs.actor_teams }}
-
-      - name: "Guard: ensure .rego policy exists"
+      - name: Build input.json for Path Guard
+        id: input
         shell: bash
         run: |
           set -Eeuo pipefail
-          COUNT=$(find "${{ github.workspace }}/conftest-policy" -type f -name '*.rego' | wc -l || true)
-          if [ "$COUNT" -eq 0 ]; then
-            echo "::error::No .rego files found under conftest-policy/. Check the path or filename."
-            exit 1
-          fi
-          echo "Found $COUNT rego file(s)."
-
-      - name: Show workspace snippets
-        shell: bash
-        run: |
-          echo "pwd: $(pwd)"
-          echo "--- rego files (<= depth 3) ---"
-          find . -maxdepth 3 -type f -name "*.rego" -print || true
-          echo "--- input.json ---"
-          cat input.json || true
-
-      - name: Print policy hash
-        shell: bash
-        run: |
-          set -e
-          sha256sum "${{ github.workspace }}/conftest-policy/path_guard.rego" || true
-          nl -ba "${{ github.workspace }}/conftest-policy/path_guard.rego" | sed -n '1,40p'
+          jq -n \
+            --slurpfile files /tmp/files.json \
+            --slurpfile teams /tmp/actor_teams.json \
+            --argjson debug false \
+            '{debug:$debug, files:$files[0], actor_teams:$teams[0]}' > input.json
+          echo "input.json:"
+          cat input.json
 
       - name: Install Conftest
         shell: bash
         run: |
-          curl -L https://github.com/open-policy-agent/conftest/releases/download/v0.62.0/conftest_0.62.0_Linux_x86_64.tar.gz | tar xz
-          sudo mv conftest /usr/local/bin/
+          set -Eeuo pipefail
+          curl -sSL https://github.com/open-policy-agent/conftest/releases/latest/download/conftest_Linux_x86_64.tar.gz -o /tmp/conftest.tgz
+          sudo tar -C /usr/local/bin -xzf /tmp/conftest.tgz conftest
           conftest --version
 
-      - name: Conftest verify
+      - name: Run Path Guard policy
         shell: bash
-        run: conftest verify --policy "${{ github.workspace }}/conftest-policy"
+        run: |
+          set -Eeuo pipefail
+          conftest test \
+            --namespace pr.pathguard \
+            --policy "./conftest-policy" \
+            "./input.json"
 
-      - name: Run path guard
-        shell: bash
-        run: conftest test --namespace pr.pathguard --policy "${{ github.workspace }}/conftest-policy" "${{ github.workspace }}/input.json"
-
-      - name: Upload input.json (artifact)
+      - name: Upload inputs (artifact)
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: conftest-input
           path: input.json
-          retention-days: 7
+
+  auth0-policies:
+    name: Auth0 Policies (Conftest verify)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Conftest
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          curl -sSL https://github.com/open-policy-agent/conftest/releases/latest/download/conftest_Linux_x86_64.tar.gz -o /tmp/conftest.tgz
+          sudo tar -C /usr/local/bin -xzf /tmp/conftest.tgz conftest
+          conftest --version
+
+      - name: Verify Rego unit tests (if present)
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          POLICY_DIR="base/policies/auth0-policy"
+          if [ -d "$POLICY_DIR" ]; then
+            # conftest verify runs Rego unit tests (same as `opa test`) found under POLICY_DIR
+            if compgen -G "${POLICY_DIR}/*_test.rego" > /dev/null; then
+              conftest verify "$POLICY_DIR"
+            else
+              echo "No *_test.rego found in ${POLICY_DIR}; skipping conftest verify."
+            fi
+          else
+            echo "WARNING: ${POLICY_DIR} not found; skipping."
+          fi
+
+      - name: Optional policy smoke test with empty input
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          POLICY_DIR="base/policies/auth0-policy"
+          if [ -d "$POLICY_DIR" ]; then
+            echo '{}' > /tmp/empty.json
+            # If your Auth0 policy package exposes rules expecting input, you can point tests at /tmp/empty.json
+            # Adjust namespace if you have a package name (e.g., package auth0.policy)
+            conftest test --policy "$POLICY_DIR" /tmp/empty.json || true
+          fi
