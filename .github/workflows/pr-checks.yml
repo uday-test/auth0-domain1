@@ -204,12 +204,19 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          printf "%s\n" "${{ steps.changed.outputs.changed }}" | tr -d '\r' | awk 'NF' > /tmp/changed.txt
+
+          # Write changed file list (strip CRs to avoid weird parsing on Windows-origin commits)
+          printf '%s\n' "${{ steps.changed.outputs.changed }}" | tr -d '\r' | awk 'NF' > /tmp/changed.txt
+
           # Adjust the regex if your resources live elsewhere
           grep -E '^(apps/[^/]+/resources/).*\.(ya?ml|json)$' /tmp/changed.txt > /tmp/targets.txt || true
+
           COUNT="$(wc -l < /tmp/targets.txt | tr -d ' ')"
-          echo "count=$COUNT" >> "$GITHUB_OUTPUT"
-          echo "Targets ($COUNT):"
+          {
+            echo "count=${COUNT}"
+          } >> "$GITHUB_OUTPUT"
+
+          echo "Targets (${COUNT}):"
           cat /tmp/targets.txt || true
 
       - name: Guard: ensure auth0.policy exists
@@ -217,10 +224,14 @@ jobs:
         run: |
           set -Eeuo pipefail
           REGOROOT="${{ github.workspace }}/base/policies/auth0-policy"
-          test -f "$REGOROOT/auth0.policy.rego" || { echo "::error::Missing $REGOROOT/auth0.policy.rego"; exit 1; }
+          if [ ! -f "$REGOROOT/auth0.policy.rego" ]; then
+            echo "::error::Missing $REGOROOT/auth0.policy.rego"
+            exit 1
+          fi
           echo "Found policy at $REGOROOT/auth0.policy.rego"
           echo "--- policy head ---"
           nl -ba "$REGOROOT/auth0.policy.rego" | sed -n '1,80p'
+
 
       - name: Install Conftest
         shell: bash
