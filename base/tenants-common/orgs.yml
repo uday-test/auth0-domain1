@@ -1,0 +1,7 @@
+orgs:
+enabled: true
+naming:
+pattern: "{env}-{tenant}-org"
+features:
+memberships: true
+invitations: true

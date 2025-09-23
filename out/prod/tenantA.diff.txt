@@ -1,0 +1,68 @@
+@@ -1,21 +1,66 @@
++# Defaults which envs may override
++absolute_timeout_hours: 12
++access_token_ttl: 1800 # 30m
++allowed_factors:
++  - authenticator_app
++  - webauthn-roaming
++allowed_logout_urls:
++  - https://enterprise-secure-logout.com
++  - https://{base_url}/logout
+ branding:
++breach_detection:
++disallowed_factors:
++  - sms
+ enabled: true
+ enrollment: required
++env: prod
+ factors:
+   - otp
+   - push
+   - webauthn
+ features:
++general:
++history_count: 10 # prevent reuse of last 10 passwords
++id_token_ttl: 1800 # 30m
++identity_access:
++idle_timeout_minutes: 20
++inactivity_days: 30
+ invitations: true
++leeway_days: 7
++lifetime_days: 90
+ login:
+ logo_url: https://example.com/logo.png
+ memberships: true
+ mfa:
++min_length: 16
+ naming:
+ orgs:
++password_policy:
+ pattern: '{env}-{tenant}-org'
+-primary_color: '#0055AA'
++primary_color: '#0CA678' # prod-green
+ prompts:
++refresh:
++refresh_token:
++refresh_token_ttl: 1209600 # 14d (keep default)
++require_lowercase: true
++require_numbers: true
++require_symbols: true
++require_uppercase: true
++revoke_on_use: true
++rotation: true
++rules:
++  - name: log_user_login
++    order: 0
++    script: |-
++      function (user, context, callback) {
++        console.log("Login event:", user.user_id, context.request.ip);
++        callback(null, user, context);
++      }
++security:
++# prod tightens TTLs beyond the shared-sec defaults
++session:
+ subtitle: '{env | upper} environment'
++tenant: tenantA
+ title: Sign in to {tenant}
++tokens:
+ universal_login:

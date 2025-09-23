@@ -1,0 +1,66 @@
+# Defaults which envs may override
+mfa:
+enabled: true
+enrollment: required
+factors:
+  - otp
+  - push
+  - webauthn
+orgs:
+naming:
+pattern: '{env}-{tenant}-org'
+features:
+memberships: true
+invitations: true
+prompts:
+login:
+title: Sign in to {tenant}
+subtitle: '{env | upper} environment'
+universal_login:
+branding:
+primary_color: '#228BE6' # dev-blue
+logo_url: https://example.com/logo.png
+general:
+allowed_logout_urls:
+  - https://enterprise-secure-logout.com
+  - https://{base_url}/logout
+tokens:
+refresh:
+lifetime_days: 90
+inactivity_days: 30
+leeway_days: 7
+security:
+password_policy:
+min_length: 16
+require_numbers: true
+require_symbols: true
+require_uppercase: true
+require_lowercase: true
+breach_detection:
+refresh_token:
+rotation: true
+revoke_on_use: true
+identity_access:
+history_count: 10 # prevent reuse of last 10 passwords
+allowed_factors:
+  - authenticator_app
+  - webauthn-roaming
+disallowed_factors:
+  - sms
+rules:
+  - name: log_user_login
+    order: 0
+    script: |-
+      function (user, context, callback) {
+        console.log("Login event:", user.user_id, context.request.ip);
+        callback(null, user, context);
+      }
+# dev is more relaxed
+session:
+idle_timeout_minutes: 120
+absolute_timeout_hours: 72
+access_token_ttl: 7200 # 2h
+id_token_ttl: 3600 # 1h
+refresh_token_ttl: 2592000 # 30d
+env: dev
+tenant: tenantA

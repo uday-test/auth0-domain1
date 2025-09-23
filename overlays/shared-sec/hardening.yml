@@ -1,0 +1,12 @@
+security:
+password_policy:
+min_length: 12
+require_numbers: true
+require_symbols: true
+require_uppercase: true
+require_lowercase: true
+breach_detection:
+enabled: true
+refresh_token:
+rotation: true
+revoke_on_use: true

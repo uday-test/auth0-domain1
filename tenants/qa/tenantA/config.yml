@@ -1,0 +1,10 @@
+env: qa
+tenant: tenantA
+prompts:
+universal_login:
+branding:
+primary_color: "#6741D9" # qa-purple
+
+
+tokens:
+access_token_ttl: 5400
