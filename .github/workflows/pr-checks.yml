@@ -1,4 +1,4 @@
-name: PR Checks (Conftest)
+name: PR Checks (Conftest + Preview Enforce)
 
 on:
   pull_request:
@@ -15,16 +15,18 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # ----------------------------
+  # 1) PATH GUARD (your existing)
+  # ----------------------------
   path-guard:
     name: Path Guard (Conftest)
     runs-on: ubuntu-latest
     env:
-      ORG_TOKEN: ${{ secrets.ORG_TOKEN }}    # optional: org PAT with read:org
+      ORG_TOKEN: ${{ secrets.ORG_TOKEN }} # optional: org PAT with read:org
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+        with: { fetch-depth: 0 }
 
       - name: Determine base & head
         id: revs
@@ -134,14 +136,17 @@ jobs:
           path: input.json
           retention-days: 7
 
+  # ------------------------------------
+  # 2) AUTH0 POLICIES (your existing)
+  # ------------------------------------
   auth0-policies:
     name: Auth0 Policies (Conftest)
     runs-on: ubuntu-latest
+    needs: [path-guard]  # run after path-guard
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+        with: { fetch-depth: 0 }
 
       - name: Install Conftest (same method)
         shell: bash
@@ -176,7 +181,6 @@ jobs:
         run: |
           set -Eeuo pipefail
 
-          # compute base/head for this PR
           BASE="${{ github.event.pull_request.base.sha || '' }}"
           HEAD="${{ github.event.pull_request.head.sha || github.sha }}"
           if [ -z "$BASE" ]; then
@@ -184,7 +188,6 @@ jobs:
             BASE="$(git rev-parse origin/main)"
           fi
 
-          # select YAMLs under apps/*/(auth0/)?...*.yml|yaml
           mapfile -t FILES < <(git diff --name-only "$BASE..$HEAD" \
             | grep -E '^apps/[^/]+/(auth0/)?[^/]+\.(ya?ml)$' || true)
 
@@ -200,3 +203,46 @@ jobs:
             --namespace auth0.policy \
             --policy base/policies/auth0-policy \
             "${FILES[@]}"
+
+  # -------------------------------------------------------
+  # 3) PREVIEW + ENFORCE SHARED-SEC (reject PR on violation)
+  # -------------------------------------------------------
+  preview-and-enforce:
+    name: Preview + Enforce Shared-Sec
+    runs-on: ubuntu-latest
+    needs: [path-guard]          # wait for path-guard
+    strategy:
+      fail-fast: false
+      matrix:
+        tenant: [tenantA, tenantB]  # <-- update this list to your tenants
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install yq (v4)
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          VER="v4.44.3"
+          curl -sSfL -o /usr/local/bin/yq \
+            "https://github.com/mikefarah/yq/releases/download/${VER}/yq_linux_amd64"
+          chmod +x /usr/local/bin/yq
+          yq --version
+
+      - name: Run preview + enforcement
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          chmod +x ./scripts/preview.sh
+          ./scripts/preview.sh "${{ matrix.tenant }}"
+
+      - name: Upload preview artifacts (always)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: preview-${{ matrix.tenant }}
+          path: |
+            out/**/${{ matrix.tenant }}.effective.yml
+            out/**/${{ matrix.tenant }}.diff.txt
+            out/*_${{ '*' }}_${{ '*' }}.${{ matrix.tenant }}.diff.txt
+          retention-days: 7

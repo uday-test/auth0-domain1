@@ -1,0 +1,53 @@
+@@ -1,6 +1,6 @@
+ # Defaults which envs may override
+-absolute_timeout_hours: 72
+-access_token_ttl: 7200 # 2h
++absolute_timeout_hours: 12
++access_token_ttl: 1800 # 30m
+ allowed_factors:
+   - authenticator_app
+   - webauthn-roaming
+@@ -13,7 +13,7 @@
+   - sms
+ enabled: true
+ enrollment: required
+-env: dev
++env: prod
+ factors:
+   - otp
+   - push
+@@ -21,9 +21,9 @@
+ features:
+ general:
+ history_count: 10 # prevent reuse of last 10 passwords
+-id_token_ttl: 3600 # 1h
++id_token_ttl: 1800 # 30m
+ identity_access:
+-idle_timeout_minutes: 120
++idle_timeout_minutes: 20
+ inactivity_days: 30
+ invitations: true
+ leeway_days: 7
+@@ -37,11 +37,11 @@
+ orgs:
+ password_policy:
+ pattern: '{env}-{tenant}-org'
+-primary_color: '#228BE6' # dev-blue
++primary_color: '#0CA678' # prod-green
+ prompts:
+ refresh:
+ refresh_token:
+-refresh_token_ttl: 2592000 # 30d
++refresh_token_ttl: 1209600 # 14d (keep default)
+ require_lowercase: true
+ require_numbers: true
+ require_symbols: true
+@@ -57,7 +57,7 @@
+         callback(null, user, context);
+       }
+ security:
+-# dev is more relaxed
++# prod tightens TTLs beyond the shared-sec defaults
+ session:
+ subtitle: '{env | upper} environment'
+ tenant: tenantA

@@ -1,0 +1,17 @@
+env: dev
+tenant: tenantA
+prompts:
+universal_login:
+branding:
+primary_color: "#228BE6" # dev-blue
+
+
+# dev is more relaxed
+session:
+idle_timeout_minutes: 120
+absolute_timeout_hours: 72
+
+
+tokens:
+access_token_ttl: 7200 # 2h
+refresh_token_ttl: 2592000 # 30d
