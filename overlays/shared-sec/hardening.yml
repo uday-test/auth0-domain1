@@ -1,12 +1,16 @@
-security:
-password_policy:
-min_length: 12
-require_numbers: true
-require_symbols: true
-require_uppercase: true
-require_lowercase: true
-breach_detection:
-enabled: true
-refresh_token:
-rotation: true
-revoke_on_use: true
+passwordPolicy:
+  length:
+    min: 12
+  includeNumbers: true
+  includeSymbols: true
+  includeUppercase: true
+  includeLowercase: true
+
+tenant:
+  flags:
+    enable_sso: true
+    disable_clickjack_protection_headers: false
+  breach_detection_enabled: true
+  refresh_token:
+    rotation: true
+    revoke_on_use: true

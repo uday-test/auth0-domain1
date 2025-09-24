@@ -1,27 +1,22 @@
+# Environment metadata (for your tooling)
 env: dev
 tenant: tenantA
-prompts:
-universal_login:
+
+# Auth0 branding configuration
 branding:
-primary_color: "#228BE6" # dev-blue
+  colors:
+    primary: "#228BE6"  # dev-blue
 
+# Tenant session settings (dev is more relaxed)
+tenant:
+  session_lifetime: 7200        # 120 minutes = 7200 seconds
+  idle_session_lifetime: 259200 # 72 hours = 259200 seconds
 
-# dev is more relaxed
-session:
-idle_timeout_minutes: 120
-absolute_timeout_hours: 72
-
-
-tokens:
-access_token_ttl: 7200 # 2h
-refresh_token_ttl: 2592000 # 30d
-
-prompts:
-  universal_login:
-    branding:
-      primary_color: "#228BE6"
-
-prompts:
-  universal_login:
-    branding:
-      primary_color: "#228BE6"
+# Token settings for applications
+clients:
+  - name: "default-app"
+    jwt_configuration:
+      lifetime_in_seconds: 7200  # 2 hours access token
+    refresh_token:
+      expiration_type: "expiring"
+      lifetime_in_seconds: 2592000  # 30 days

@@ -1,12 +1,13 @@
-identity_access:
-password_policy:
-min_length: 16
-history_count: 10 # prevent reuse of last 10 passwords
+passwordPolicy:
+  length:
+    min: 16  # This overrides hardening.yml
+  history: 10
 
-
-mfa:
-allowed_factors:
-- authenticator_app
-- webauthn-roaming
-disallowed_factors:
-- sms
+guardianMfaPolicy:
+  factors:
+    - name: "otp"
+      enabled: true
+    - name: "webauthn-roaming"
+      enabled: true
+    - name: "sms"
+      enabled: false

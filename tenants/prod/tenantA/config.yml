@@ -1,18 +1,22 @@
+# Environment metadata
 env: prod
 tenant: tenantA
-prompts:
-universal_login:
+
+# Auth0 branding configuration
 branding:
-primary_color: "#0CA678" # prod-green
+  colors:
+    primary: "#0CA678"  # prod-green
 
+# Tenant session settings (prod is stricter)
+tenant:
+  session_lifetime: 1200   # 20 minutes = 1200 seconds
+  idle_session_lifetime: 43200  # 12 hours = 43200 seconds
 
-# prod tightens TTLs beyond the shared-sec defaults
-session:
-idle_timeout_minutes: 20
-absolute_timeout_hours: 12
-
-
-tokens:
-access_token_ttl: 1800 # 30m
-id_token_ttl: 1800 # 30m
-refresh_token_ttl: 1209600 # 14d (keep default)
+# Token settings (prod tightens TTLs)
+clients:
+  - name: "default-app"
+    jwt_configuration:
+      lifetime_in_seconds: 1800  # 30 minutes access token
+    refresh_token:
+      expiration_type: "expiring"
+      lifetime_in_seconds: 1209600  # 14 days

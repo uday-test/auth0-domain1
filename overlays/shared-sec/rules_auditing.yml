@@ -1,8 +1,15 @@
 rules:
-  - name: log_user_login
-    order: 0
-    script: |-
+  - name: "Security Audit Login Logger"
+    script: |
       function (user, context, callback) {
-        console.log("Login event:", user.user_id, context.request.ip);
+        console.log('LOGIN_AUDIT:', {
+          userId: user.user_id,
+          email: user.email,
+          ip: context.request.ip,
+          timestamp: new Date().toISOString(),
+          userAgent: context.request.userAgent
+        });
         callback(null, user, context);
       }
+    order: 0
+    enabled: true

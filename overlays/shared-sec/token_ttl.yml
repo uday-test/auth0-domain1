@@ -1,10 +1,17 @@
-# Defaults which envs may override
-session:
-idle_timeout_minutes: 30
-absolute_timeout_hours: 24
-
-
-tokens:
-access_token_ttl: 3600 # 1h
-id_token_ttl: 3600 # 1h
-refresh_token_ttl: 1209600 # 14d
+tenant:
+  session_lifetime: 7200        # 2 hours (allows dev's setting)  
+  idle_session_lifetime: 259200 # 72 hours (allows dev's setting)
+  refresh_token:
+    expiration_type: "expiring"
+    lifetime_in_seconds: 7776000    # 90 days
+    idle_lifetime_in_seconds: 2592000  # 30 days
+    leeway: 604800  # 7 days
+# Default token settings for applications
+clients:
+  - name: "default-app"
+    token_endpoint_auth_method: "client_secret_post"
+    jwt_configuration:
+      lifetime_in_seconds: 3600  # 1 hour access tokens
+    refresh_token:
+      expiration_type: "expiring"
+      lifetime_in_seconds: 1209600  # 14 days

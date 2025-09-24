@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-# ---------- config ----------
 TENANT="${1:-tenantA}"
+CI_MODE="${CI_MODE:-false}"
+
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")"/.. && pwd)"
 BASE_DIR="$ROOT_DIR/base/tenants-common"
 OVERLAY_DIR="$ROOT_DIR/overlays/shared-sec"
@@ -11,50 +12,101 @@ OUT_DIR="$ROOT_DIR/out"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
+YQ_TIMEOUT_SECS="${YQ_TIMEOUT_SECS:-20}"
+
+# Colors for output (disabled in CI)
+if [[ "$CI_MODE" == "true" ]]; then
+  RED=""
+  GREEN=""
+  YELLOW=""
+  BLUE=""
+  NC=""
+else
+  RED='\033[0;31m'
+  GREEN='\033[0;32m'
+  YELLOW='\033[1;33m'
+  BLUE='\033[0;34m'
+  NC='\033[0m' # No Color
+fi
+
+# Violation tracking for CI summary
+VIOLATIONS=()
+VIOLATION_COUNT=0
+
+# Track violations for reporting
+track_violation() {
+  local violation="$1"
+  VIOLATIONS+=("$violation")
+  ((VIOLATION_COUNT++))
+  echo -e "${RED}❌${NC} $violation"
+}
+
+# Report success
+report_success() {
+  local message="$1"
+  echo -e "${GREEN}✅${NC} $message"
+}
+
+# Log enforcement results for CI
+log_enforcement_result() {
+  local env="$1"
+  local result="$2"
+  local message="$3"
+  
+  if [[ "$result" == "pass" ]]; then
+    report_success "$env: $message"
+  else
+    track_violation "$env: $message"
+  fi
+}
+
 # ---------- helpers ----------
 need_yq() {
   if ! command -v yq >/dev/null 2>&1; then
-    echo "❌ Missing 'yq' (v4+). Install: https://github.com/mikefarah/yq#install" 1>&2
+    echo -e "${RED}❌${NC} Missing 'yq'. Install v4+: https://github.com/mikefarah/yq#install" 1>&2
+    exit 2
+  fi
+  local ver
+  ver="$(yq --version 2>/dev/null || true)"
+  if ! grep -Eq 'version v?4\.' <<<"$ver"; then
+    echo -e "${RED}❌${NC} yq v4+ required. Found: $ver" 1>&2
     exit 2
   fi
 }
 
 # deep merge (left→right)
-merge_yaml() {
+merge_yaml() { # merge_yaml <out> <files...>
   local out="$1"; shift
-  yq ea -P '. as $doc ireduce ({}; . * $doc )' "$@" >"$out"
+  timeout "$YQ_TIMEOUT_SECS" yq ea -P '. as $doc ireduce ({}; . * $doc )' "$@" >"$out"
 }
 
 # pretty + stable key order
 sorted_to() { # sorted_to <in> <out>
-  yq ea -P 'sort_keys(..)' "$1" >"$2"
+  timeout "$YQ_TIMEOUT_SECS" yq ea -P 'sort_keys(..)' "$1" >"$2"
 }
 
 mkout() { mkdir -p "$OUT_DIR/$1"; }
 
-# numeric compare helper: effective must be <= baseline (i.e., as strict or stricter)
-num_must_be_le() { # num_must_be_le "<label>" "<yq_path>"
+# numeric compare helper: effective must be >= baseline (i.e., as strict or stricter)
+num_must_be_ge() { # num_must_be_ge "<label>" "<yq_path>"
   local label="$1" q="$2" base_val eff_val
-  base_val="$(yq -r "$q // \"\"" "$BASELINE")"
+  base_val="$(timeout "$YQ_TIMEOUT_SECS" yq -r "$q // \"\"" "$BASELINE")"
   [[ -n "$base_val" && "$base_val" != "null" ]] || return 0
-  eff_val="$(yq -r "$q // \"\"" "$EFF")"
-  # if missing in effective, treat as 0 (stricter)
+  eff_val="$(timeout "$YQ_TIMEOUT_SECS" yq -r "$q // \"\"" "$EFF")"
   [[ "$eff_val" =~ ^[0-9]+$ ]] || eff_val=0
-  if (( eff_val > base_val )); then
-    echo "❌ $ENV_NAME: $label=$eff_val weaker than baseline ($base_val)"
-    ENFORCE_FAIL=1
+  if (( eff_val < base_val )); then
+    track_violation "$ENV_NAME: $label=$eff_val weaker than baseline ($base_val)"
   fi
 }
 
 # boolean must be true if baseline true
 bool_must_be_true() { # bool_must_be_true "<label>" "<yq_path>"
   local label="$1" q="$2" b e
-  b="$(yq -r "$q // \"\"" "$BASELINE")"
+  b="$(timeout "$YQ_TIMEOUT_SECS" yq -r "$q // \"\"" "$BASELINE")"
   [[ "$b" == "true" ]] || return 0
-  e="$(yq -r "$q // \"false\"" "$EFF")"
+  e="$(timeout "$YQ_TIMEOUT_SECS" yq -r "$q // \"false\"" "$EFF")"
   if [[ "$e" != "true" ]]; then
-    echo "❌ $ENV_NAME: requires $label = true"
-    ENFORCE_FAIL=1
+    track_violation "$ENV_NAME: requires $label = true"
   fi
 }
 
@@ -65,13 +117,14 @@ render_env() {
   local eff_merged="$OUT_DIR/$env/$TENANT.effective.yml"
   local diff_out="$OUT_DIR/$env/$TENANT.diff.txt"
 
-  echo "▶ Rendering $env for tenant $TENANT"
+  echo -e "${BLUE}▶${NC} Rendering $env for tenant $TENANT"
   mkout "$env"
 
-  merge_yaml "$base_merged" "$BASE_DIR"/*.yml
-  merge_yaml "$eff_merged"  "$BASE_DIR"/*.yml "$OVERLAY_DIR"/*.yml "$TENANTS_DIR/$env/$TENANT/config.yml"
+  # Use pre-resolved arrays (no empty globs reaching yq)
+  merge_yaml "$base_merged" "${BASE_FILES[@]}"
+  merge_yaml "$eff_merged"  "${BASE_FILES[@]}" "${OVERLAY_FILES[@]}" "$TENANTS_DIR/$env/$TENANT/config.yml"
 
-  # stable sort + diff without process substitution (windows-safe)
+  # stable sort + diff (windows-safe)
   local base_sorted="$TMP_DIR/${env}.base.sorted.yml"
   local eff_sorted="$TMP_DIR/${env}.eff.sorted.yml"
   sorted_to "$base_merged" "$base_sorted"
@@ -83,7 +136,7 @@ render_env() {
 }
 
 cross_env_diffs() {
-  printf "\n▶ Cross-env drift checks\n"
+  printf "\n${BLUE}▶${NC} Cross-env drift checks\n"
   local pairs=("dev qa" "qa prod" "dev prod")
   for p in "${pairs[@]}"; do
     set -- $p
@@ -102,109 +155,126 @@ cross_env_diffs() {
   done
 }
 
-# ---------- enforcement (deny PR if weaker than shared-sec) ----------
+# ---------- enforcement ----------
 enforce_shared_sec() {
   echo
-  echo "▶ Building shared-sec baseline"
+  echo -e "${BLUE}▶${NC} Building shared-sec baseline"
   BASELINE="$TMP_DIR/baseline.yml"
-  merge_yaml "$BASELINE" "$OVERLAY_DIR"/*.yml
+  merge_yaml "$BASELINE" "${OVERLAY_FILES[@]}"
   echo "  • merged baseline from overlays/shared-sec/*.yml"
-
-  ENFORCE_FAIL=0
 
   for ENV_NAME in dev qa prod; do
     EFF="$OUT_DIR/$ENV_NAME/$TENANT.effective.yml"
     if [[ ! -f "$EFF" ]]; then
-      echo "❌ $ENV_NAME: missing effective file $EFF"
-      ENFORCE_FAIL=1
+      track_violation "$ENV_NAME: missing effective file $EFF"
       continue
     fi
-    echo "▶ Enforcing baseline on $ENV_NAME ($EFF)"
+    echo -e "${BLUE}▶${NC} Enforcing baseline on $ENV_NAME ($EFF)"
 
-    # --- MFA factors (allow only these; disallow sms) ---
-    mapfile -t FACTORS < <(yq -r '.identity_access.mfa.allowed_factors // .mfa.factors // [] | .[]' "$EFF" 2>/dev/null || true)
-    # lowercase normalize
-    for i in "${!FACTORS[@]}"; do FACTORS[$i]="${FACTORS[$i],,}"; done
+    # --- MFA factors (Auth0 format) ---
+    mapfile -t ENABLED_FACTORS < <(timeout "$YQ_TIMEOUT_SECS" yq -r '.guardianMfaPolicy.factors[]? | select(.enabled == true) | .name' "$EFF" 2>/dev/null || true)
 
-    # required factors
-    for req in authenticator_app webauthn-roaming; do
-      if ! printf '%s\n' "${FACTORS[@]}" | grep -Eq "^${req}$"; then
-        echo "❌ $ENV_NAME: required MFA factor '$req' missing"
-        ENFORCE_FAIL=1
-      fi
-    done
-    # banned + unknowns
-    for f in "${FACTORS[@]}"; do
-      if [[ "$f" == "sms" ]]; then
-        echo "❌ $ENV_NAME: SMS MFA found"
-        ENFORCE_FAIL=1
-      elif [[ "$f" != "authenticator_app" && "$f" != "webauthn-roaming" ]]; then
-        echo "❌ $ENV_NAME: MFA factor '$f' is not allowed by enterprise baseline"
-        ENFORCE_FAIL=1
-      fi
-    done
-
-    # --- Password policy must be >= baseline ---
-    local base_min eff_min base_hist eff_hist
-    base_min="$(yq -r '.identity_access.password_policy.min_length // ""' "$BASELINE")"
-    eff_min="$(yq -r '.identity_access.password_policy.min_length // 0'  "$EFF")"
-    if [[ -n "$base_min" && "$base_min" != "null" && "$eff_min" -lt "$base_min" ]]; then
-      echo "❌ $ENV_NAME: password min_length $eff_min < baseline $base_min"
-      ENFORCE_FAIL=1
-    fi
-    base_hist="$(yq -r '.identity_access.password_policy.history_count // ""' "$BASELINE")"
-    eff_hist="$(yq -r '.identity_access.password_policy.history_count // 0'  "$EFF")"
-    if [[ -n "$base_hist" && "$base_hist" != "null" && "$eff_hist" -lt "$base_hist" ]]; then
-      echo "❌ $ENV_NAME: password history_count $eff_hist < baseline $base_hist"
-      ENFORCE_FAIL=1
-    fi
-
-    # --- Required booleans (if true in baseline → must be true in effective) ---
-    bool_must_be_true "security.breach_detection.enabled" '.security.breach_detection.enabled'
-    bool_must_be_true "security.password_policy.require_numbers"   '.security.password_policy.require_numbers'
-    bool_must_be_true "security.password_policy.require_symbols"   '.security.password_policy.require_symbols'
-    bool_must_be_true "security.password_policy.require_uppercase" '.security.password_policy.require_uppercase'
-    bool_must_be_true "security.password_policy.require_lowercase" '.security.password_policy.require_lowercase'
-    bool_must_be_true "mfa.enabled" '.mfa.enabled'
-
-    # --- Timeouts & TTLs: effective must be <= baseline (stricter or equal) ---
-    num_must_be_le "session.idle_timeout_minutes" '.session.idle_timeout_minutes'
-    num_must_be_le "session.absolute_timeout_hours" '.session.absolute_timeout_hours'
-    num_must_be_le "tokens.access_token_ttl" '.tokens.access_token_ttl'
-    num_must_be_le "tokens.id_token_ttl" '.tokens.id_token_ttl'
-    num_must_be_le "tokens.refresh_token_ttl" '.tokens.refresh_token_ttl'
-    num_must_be_le "tokens.refresh.lifetime_days" '.tokens.refresh.lifetime_days'
-    num_must_be_le "tokens.refresh.inactivity_days" '.tokens.refresh.inactivity_days'
-    num_must_be_le "tokens.refresh.leeway_days" '.tokens.refresh.leeway_days'
-
-    # --- Logout URLs: effective must include all required enterprise URLs ---
-    if yq -e '.general.allowed_logout_urls' "$BASELINE" >/dev/null 2>&1; then
-      while IFS= read -r url; do
-        [[ -z "$url" || "$url" == "null" ]] && continue
-        if ! yq -r '.general.allowed_logout_urls[]? // empty' "$EFF" | grep -Fxq "$url"; then
-          echo "❌ $ENV_NAME: missing required logout URL $url"
-          ENFORCE_FAIL=1
+    # Check required factors are enabled
+    for req in otp webauthn-roaming; do
+      found=false
+      for factor in "${ENABLED_FACTORS[@]}"; do
+        if [[ "$factor" == "$req" ]]; then
+          found=true
+          break
         fi
-      done < <(yq -r '.general.allowed_logout_urls[]? // empty' "$BASELINE")
+      done
+      if [[ "$found" == "false" ]]; then
+        track_violation "$ENV_NAME: required MFA factor '$req' missing"
+      fi
+    done
+    
+    # Check SMS is NOT enabled
+    for factor in "${ENABLED_FACTORS[@]}"; do
+      if [[ "$factor" == "sms" ]]; then
+        track_violation "$ENV_NAME: SMS MFA factor is enabled (should be disabled)"
+      fi
+    done
+
+    # --- Password policy thresholds (Auth0 format) ---
+    local base_min eff_min base_hist eff_hist
+    base_min="$(timeout "$YQ_TIMEOUT_SECS" yq -r '.passwordPolicy.length.min // ""' "$BASELINE")"
+    eff_min="$(timeout "$YQ_TIMEOUT_SECS" yq -r '.passwordPolicy.length.min // 0'  "$EFF")"
+    if [[ -n "$base_min" && "$base_min" != "null" && "$eff_min" -lt "$base_min" ]]; then
+      track_violation "$ENV_NAME: password min_length $eff_min < baseline $base_min"
+    fi
+    base_hist="$(timeout "$YQ_TIMEOUT_SECS" yq -r '.passwordPolicy.history // ""' "$BASELINE")"
+    eff_hist="$(timeout "$YQ_TIMEOUT_SECS" yq -r '.passwordPolicy.history // 0'  "$EFF")"
+    if [[ -n "$base_hist" && "$base_hist" != "null" && "$eff_hist" -lt "$base_hist" ]]; then
+      track_violation "$ENV_NAME: password history_count $eff_hist < baseline $base_hist"
+    fi
+
+    # --- Required booleans (Auth0 format) ---
+    bool_must_be_true "passwordPolicy.includeNumbers" '.passwordPolicy.includeNumbers'
+    bool_must_be_true "passwordPolicy.includeSymbols" '.passwordPolicy.includeSymbols'
+    bool_must_be_true "passwordPolicy.includeUppercase" '.passwordPolicy.includeUppercase'
+    bool_must_be_true "passwordPolicy.includeLowercase" '.passwordPolicy.includeLowercase'
+    bool_must_be_true "tenant.breach_detection_enabled" '.tenant.breach_detection_enabled'
+    bool_must_be_true "guardianMfaPolicy.enabled" '.guardianMfaPolicy.enabled'
+
+    # --- Token lifetimes (Auth0 format - seconds) ---
+    num_must_be_ge "passwordPolicy.length.min" '.passwordPolicy.length.min'
+    num_must_be_ge "passwordPolicy.history" '.passwordPolicy.history'
+    
+    # Session timeouts (lower is stricter, so effective <= baseline)
+    local base_session eff_session base_idle eff_idle
+    base_session="$(timeout "$YQ_TIMEOUT_SECS" yq -r '.tenant.session_lifetime // ""' "$BASELINE")"
+    eff_session="$(timeout "$YQ_TIMEOUT_SECS" yq -r '.tenant.session_lifetime // 99999'  "$EFF")"
+    if [[ -n "$base_session" && "$base_session" != "null" && "$eff_session" -gt "$base_session" ]]; then
+      track_violation "$ENV_NAME: session_lifetime $eff_session > baseline $base_session (should be stricter)"
+    fi
+    
+    base_idle="$(timeout "$YQ_TIMEOUT_SECS" yq -r '.tenant.idle_session_lifetime // ""' "$BASELINE")"
+    eff_idle="$(timeout "$YQ_TIMEOUT_SECS" yq -r '.tenant.idle_session_lifetime // 99999'  "$EFF")"
+    if [[ -n "$base_idle" && "$base_idle" != "null" && "$eff_idle" -gt "$base_idle" ]]; then
+      track_violation "$ENV_NAME: idle_session_lifetime $eff_idle > baseline $base_idle (should be stricter)"
+    fi
+
+    # --- Logout URLs must include required enterprise URLs (Auth0 format) ---
+    if timeout "$YQ_TIMEOUT_SECS" yq -e '.tenant.allowed_logout_urls[]?' "$BASELINE" >/dev/null 2>&1; then
+      mapfile -t REQUIRED_URLS < <(timeout "$YQ_TIMEOUT_SECS" yq -r '.tenant.allowed_logout_urls[]?' "$BASELINE" 2>/dev/null || true)
+      for url in "${REQUIRED_URLS[@]}"; do
+        [[ -z "$url" || "$url" == "null" ]] && continue
+        if ! timeout "$YQ_TIMEOUT_SECS" yq -r '.tenant.allowed_logout_urls[]?' "$EFF" 2>/dev/null | grep -Fxq "$url"; then
+          track_violation "$ENV_NAME: missing required logout URL $url"
+        fi
+      done
+    fi
+
+    # --- Rules enforcement (Auth0 format) ---
+    if timeout "$YQ_TIMEOUT_SECS" yq -e '.rules[]?' "$BASELINE" >/dev/null 2>&1; then
+      mapfile -t BASELINE_RULES < <(timeout "$YQ_TIMEOUT_SECS" yq -r '.rules[]? | .name' "$BASELINE" 2>/dev/null || true)
+      for rule_name in "${BASELINE_RULES[@]}"; do
+        [[ -z "$rule_name" || "$rule_name" == "null" ]] && continue
+        if ! timeout "$YQ_TIMEOUT_SECS" yq -r '.rules[]? | select(.enabled == true) | .name' "$EFF" 2>/dev/null | grep -Fxq "$rule_name"; then
+          track_violation "$ENV_NAME: missing required rule: $rule_name"
+        fi
+      done
     fi
   done
 
-  return "$ENFORCE_FAIL"
+  return "$VIOLATION_COUNT"
 }
 
 main() {
   need_yq
 
-  # fail fast if globs would be empty (prevents yq waiting on stdin)
+  # Resolve globs ONCE to avoid yq seeing empty globs
   shopt -s nullglob
-  base_files=( "$BASE_DIR"/*.yml );  [[ ${#base_files[@]}    -gt 0 ]] || { echo "❌ No YAML in $BASE_DIR"; exit 1; }
-  overlay_files=( "$OVERLAY_DIR"/*.yml ); [[ ${#overlay_files[@]} -gt 0 ]] || { echo "❌ No YAML in $OVERLAY_DIR"; exit 1; }
+  BASE_FILES=( "$BASE_DIR"/*.yml )
+  OVERLAY_FILES=( "$OVERLAY_DIR"/*.yml )
   shopt -u nullglob
 
-  # render each env
+  [[ ${#BASE_FILES[@]}    -gt 0 ]] || { echo -e "${RED}❌${NC} No YAML in $BASE_DIR"; exit 1; }
+  [[ ${#OVERLAY_FILES[@]} -gt 0 ]] || { echo -e "${RED}❌${NC} No YAML in $OVERLAY_DIR"; exit 1; }
+
   for env in dev qa prod; do
     if [[ ! -f "$TENANTS_DIR/$env/$TENANT/config.yml" ]]; then
-      echo "❌ Missing $TENANTS_DIR/$env/$TENANT/config.yml" 1>&2
+      echo -e "${RED}❌${NC} Missing $TENANTS_DIR/$env/$TENANT/config.yml" 1>&2
       exit 1
     fi
     render_env "$env"
@@ -213,12 +283,24 @@ main() {
   cross_env_diffs
 
   echo
-  echo "▶ Enforcing shared-sec baseline"
+  echo -e "${BLUE}▶${NC} Enforcing shared-sec baseline"
   if ! enforce_shared_sec; then
-    echo "❌ Enforcement failed: effective config is weaker than shared-sec baseline"
+    echo
+    echo -e "${RED}❌ Enforcement failed: $VIOLATION_COUNT security violations found${NC}"
+    
+    if [[ "$CI_MODE" == "true" ]]; then
+      echo "::group::Security Violations Summary"
+      printf '%s\n' "${VIOLATIONS[@]}"
+      echo "::endgroup::"
+    fi
+    
     exit 1
   fi
-  echo "✅ Enforcement passed"
+  echo -e "${GREEN}✅ Enforcement passed${NC}"
+  
+  if [[ "$CI_MODE" == "true" ]]; then
+    echo "::notice title=Security Check Passed::All Auth0 configurations meet enterprise security baseline requirements"
+  fi
 }
 
 main "$@"

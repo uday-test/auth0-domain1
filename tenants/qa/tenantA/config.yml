@@ -1,10 +1,19 @@
+# Environment metadata
 env: qa
 tenant: tenantA
-prompts:
-universal_login:
+
+# Auth0 branding configuration
 branding:
-primary_color: "#6741D9" # qa-purple
+  colors:
+    primary: "#6741D9"  # qa-purple
 
+# Token settings (qa uses defaults mostly)
+clients:
+  - name: "default-app"
+    jwt_configuration:
+      lifetime_in_seconds: 5400  # 1.5 hours access token
 
-tokens:
-access_token_ttl: 5400
+# Add the missing tenant section
+tenant:
+  session_lifetime: 3600      # 1 hour (between dev's 2h and prod's 20min)
+  idle_session_lifetime: 86400 # 24 hours (between dev's 72h and prod's 12h)

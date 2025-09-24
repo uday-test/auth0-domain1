@@ -8,7 +8,8 @@ on:
 
 permissions:
   contents: read
-  pull-requests: read
+  pull-requests: write  # Added for commenting
+  checks: write        # Added for status checks
 
 concurrency:
   group: pr-check-${{ github.event.pull_request.number || github.ref }}
@@ -211,6 +212,10 @@ jobs:
     name: Preview + Enforce Shared-Sec
     runs-on: ubuntu-latest
     needs: [path-guard]          # wait for path-guard
+    permissions:
+      contents: read
+      pull-requests: write
+      checks: write
     strategy:
       fail-fast: false
       matrix:
@@ -230,11 +235,36 @@ jobs:
           yq --version
 
       - name: Run preview + enforcement
+        id: security_check
         shell: bash
         run: |
           set -Eeuo pipefail
           chmod +x ./scripts/preview.sh
-          ./scripts/preview.sh "${{ matrix.tenant }}"
+          
+          # Create output directory for PR feedback
+          mkdir -p pr-check-output
+          
+          # Set CI mode for enhanced output
+          export CI_MODE=true
+          
+          # Run preview script and capture output
+          if ./scripts/preview.sh "${{ matrix.tenant }}" > pr-check-output/full-output-${{ matrix.tenant }}.log 2>&1; then
+            echo "status=passed" >> $GITHUB_OUTPUT
+            echo "Security compliance check for ${{ matrix.tenant }}: PASSED ✅" >> pr-check-output/summary-${{ matrix.tenant }}.md
+          else
+            echo "status=failed" >> $GITHUB_OUTPUT
+            echo "Security compliance check for ${{ matrix.tenant }}: FAILED ❌" >> pr-check-output/summary-${{ matrix.tenant }}.md
+            echo "" >> pr-check-output/summary-${{ matrix.tenant }}.md
+            echo "## Security Violations Found:" >> pr-check-output/summary-${{ matrix.tenant }}.md
+            echo "\`\`\`" >> pr-check-output/summary-${{ matrix.tenant }}.md
+            grep "❌" pr-check-output/full-output-${{ matrix.tenant }}.log | sed 's/^/  /' >> pr-check-output/summary-${{ matrix.tenant }}.md || echo "  No specific violations captured" >> pr-check-output/summary-${{ matrix.tenant }}.md
+            echo "\`\`\`" >> pr-check-output/summary-${{ matrix.tenant }}.md
+            echo "" >> pr-check-output/summary-${{ matrix.tenant }}.md
+            echo "### Required Actions:" >> pr-check-output/summary-${{ matrix.tenant }}.md
+            echo "- Fix all security violations listed above" >> pr-check-output/summary-${{ matrix.tenant }}.md
+            echo "- Ensure configurations meet enterprise security baseline requirements" >> pr-check-output/summary-${{ matrix.tenant }}.md
+            echo "- Re-run tests locally with \`./scripts/preview.sh ${{ matrix.tenant }}\`" >> pr-check-output/summary-${{ matrix.tenant }}.md
+          fi
 
       - name: Upload preview artifacts (always)
         if: always()
@@ -245,4 +275,88 @@ jobs:
             out/**/${{ matrix.tenant }}.effective.yml
             out/**/${{ matrix.tenant }}.diff.txt
             out/*_${{ '*' }}_${{ '*' }}.${{ matrix.tenant }}.diff.txt
+            pr-check-output/
           retention-days: 7
+
+      - name: Comment on PR with security results
+        uses: actions/github-script@v7
+        if: always() && github.event_name == 'pull_request'
+        with:
+          script: |
+            const fs = require('fs');
+            const status = '${{ steps.security_check.outputs.status }}';
+            const tenant = '${{ matrix.tenant }}';
+            
+            // Read the summary
+            let summary;
+            try {
+              summary = fs.readFileSync(`pr-check-output/summary-${tenant}.md`, 'utf8');
+            } catch (error) {
+              summary = `Could not read security check summary for tenant ${tenant}.`;
+            }
+            
+            // Create PR comment content
+            const header = `## 🔒 Auth0 Security Baseline Check - ${tenant}
+            
+            **Status**: ${status === 'passed' ? '✅ PASSED' : '❌ FAILED'}
+            **Tenant**: ${tenant}
+            **Environments**: dev, qa, prod
+
+            ${summary}
+
+            ---
+            <details>
+            <summary>📊 View Configuration Changes</summary>
+
+            Check the uploaded artifacts (\`preview-${tenant}\`) for:
+            - Effective configurations per environment
+            - Configuration diffs showing changes
+            - Cross-environment drift analysis
+
+            </details>`;
+
+            // Find existing comment for this tenant
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            
+            const existingComment = comments.find(comment => 
+              comment.body.includes(`🔒 Auth0 Security Baseline Check - ${tenant}`)
+            );
+            
+            if (existingComment) {
+              // Update existing comment
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existingComment.id,
+                body: header
+              });
+            } else {
+              // Create new comment
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: header
+              });
+            }
+
+
+
+      - name: Fail job if security check failed
+        if: steps.security_check.outputs.status == 'failed'
+        shell: bash
+        run: |
+          echo "❌ Security compliance check failed for tenant ${{ matrix.tenant }}!"
+          echo "This PR cannot be merged until all security violations are resolved."
+          exit 1
+
+      - name: Success summary
+        if: steps.security_check.outputs.status == 'passed'
+        shell: bash
+        run: |
+          echo "✅ Security compliance check passed for tenant ${{ matrix.tenant }}!"
+          echo "All Auth0 configurations meet enterprise security baseline requirements."

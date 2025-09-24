@@ -1,6 +1,5 @@
-mfa:
-enabled: true
-enrollment: required
-factors:
-    - authenticator_app
-    - webauthn-roaming
+guardianMfaPolicy:
+  enabled: true
+  factors:
+    - name: "otp"
+      enabled: true
