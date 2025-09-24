@@ -1,3 +1,3 @@
 organizations:
   - name: "{env}-{tenant}-org"
-    display_name: "{env} {tenant} Organization""# Updateded: $(date)" 
+    display_name: "{env} {tenant} Organization"

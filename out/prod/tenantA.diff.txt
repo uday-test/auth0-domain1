@@ -1,0 +1,73 @@
+@@ -1,14 +1,71 @@
++# Environment metadata
++# Auth0 branding configuration
+ branding:
+   colors:
+-    primary: '#0055AA'
++    primary: '#0CA678' # prod-green
++# Token settings (prod tightens TTLs)
++clients:
++  - jwt_configuration:
++      lifetime_in_seconds: 1800 # 30 minutes access token
++    name: default-app
++    refresh_token:
++      expiration_type: expiring
++      lifetime_in_seconds: 1209600 # 14 days
++env: prod
+ guardianMfaPolicy:
+   enabled: true
+   factors:
+     - enabled: true
+       name: otp
++    - enabled: true
++      name: webauthn-roaming
++    - enabled: false
++      name: sms
+ organizations:
+   - display_name: '{env} {tenant} Organization'
+     name: '{env}-{tenant}-org'
++passwordPolicy:
++  history: 10
++  includeLowercase: true
++  includeNumbers: true
++  includeSymbols: true
++  includeUppercase: true
++  length:
++    min: 16 # This overrides hardening.yml
+ prompts:
+   universal-login:
+     identifier_first: true
++rules:
++  - enabled: true
++    name: Security Audit Login Logger
++    order: 0
++    script: |
++      function (user, context, callback) {
++        console.log('LOGIN_AUDIT:', {
++          userId: user.user_id,
++          email: user.email,
++          ip: context.request.ip,
++          timestamp: new Date().toISOString(),
++          userAgent: context.request.userAgent
++        });
++        callback(null, user, context);
++      }
++# Tenant session settings (prod is stricter)
++tenant:
++  allowed_logout_urls:
++    - https://enterprise-secure-logout.com
++    - https://{base_url}/logout
++  breach_detection_enabled: true
++  flags:
++    disable_clickjack_protection_headers: false
++    enable_sso: true
++  idle_session_lifetime: 43200 # 12 hours = 43200 seconds
++  refresh_token:
++    expiration_type: expiring
++    idle_lifetime_in_seconds: 2592000 # 30 days
++    leeway: 604800 # 7 days
++    lifetime_in_seconds: 7776000 # 90 days
++    revoke_on_use: true
++    rotation: true
++  session_lifetime: 1200 # 20 minutes = 1200 seconds
++# Default token settings for applications
