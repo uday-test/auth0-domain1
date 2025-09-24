@@ -20,3 +20,8 @@ prompts:
   universal_login:
     branding:
       primary_color: "#228BE6"
+
+prompts:
+  universal_login:
+    branding:
+      primary_color: "#228BE6"
