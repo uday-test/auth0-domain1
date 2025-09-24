@@ -8,8 +8,8 @@ on:
 
 permissions:
   contents: read
-  pull-requests: write  # Added for commenting
-  checks: write        # Added for status checks
+  pull-requests: write
+  checks: write
 
 concurrency:
   group: pr-check-${{ github.event.pull_request.number || github.ref }}
@@ -143,7 +143,7 @@ jobs:
   auth0-policies:
     name: Auth0 Policies (Conftest)
     runs-on: ubuntu-latest
-    needs: [path-guard]  # run after path-guard
+    needs: [path-guard]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -211,7 +211,7 @@ jobs:
   preview-and-enforce:
     name: Preview + Enforce Shared-Sec
     runs-on: ubuntu-latest
-    needs: [path-guard]          # wait for path-guard
+    needs: [path-guard]
     permissions:
       contents: read
       pull-requests: write
@@ -219,7 +219,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        tenant: [tenantA]  # <-- update this list to your tenants
+        tenant: [tenantA]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -247,7 +247,7 @@ jobs:
           # Set CI mode for enhanced output
           export CI_MODE=true
           
-          # Run preview script and capture both stdout and stderr
+          # Run preview script and capture output
           if ./scripts/preview.sh "${{ matrix.tenant }}" 2>&1 | tee pr-check-output/full-output-${{ matrix.tenant }}.log; then
             echo "status=passed" >> $GITHUB_OUTPUT
             echo "Security compliance check for ${{ matrix.tenant }}: PASSED ✅" >> pr-check-output/summary-${{ matrix.tenant }}.md
@@ -255,19 +255,15 @@ jobs:
             echo "status=failed" >> $GITHUB_OUTPUT
             echo "Security compliance check for ${{ matrix.tenant }}: FAILED ❌" >> pr-check-output/summary-${{ matrix.tenant }}.md
             echo "" >> pr-check-output/summary-${{ matrix.tenant }}.md
-            echo "## Security Violations Found:" >> pr-check-output/summary-${{ matrix.tenant }}.md
+            echo "## Security Check Output:" >> pr-check-output/summary-${{ matrix.tenant }}.md
             echo "\`\`\`" >> pr-check-output/summary-${{ matrix.tenant }}.md
-            # Better violation capture - look for multiple patterns
-            grep -E "(❌|dev:|qa:|prod:).*(missing|weaker|violation|enabled.*disabled|disabled.*enabled)" pr-check-output/full-output-${{ matrix.tenant }}.log | sed 's/^/  /' >> pr-check-output/summary-${{ matrix.tenant }}.md || \
-            grep -E "Enforcement failed:" pr-check-output/full-output-${{ matrix.tenant }}.log | sed 's/^/  /' >> pr-check-output/summary-${{ matrix.tenant }}.md || \
-            echo "  Check the full log in artifacts for detailed violation information" >> pr-check-output/summary-${{ matrix.tenant }}.md
+            cat pr-check-output/full-output-${{ matrix.tenant }}.log >> pr-check-output/summary-${{ matrix.tenant }}.md
             echo "\`\`\`" >> pr-check-output/summary-${{ matrix.tenant }}.md
             echo "" >> pr-check-output/summary-${{ matrix.tenant }}.md
             echo "### Required Actions:" >> pr-check-output/summary-${{ matrix.tenant }}.md
             echo "- Fix all security violations listed above" >> pr-check-output/summary-${{ matrix.tenant }}.md
             echo "- Ensure configurations meet enterprise security baseline requirements" >> pr-check-output/summary-${{ matrix.tenant }}.md
             echo "- Re-run tests locally with \`./scripts/preview.sh ${{ matrix.tenant }}\`" >> pr-check-output/summary-${{ matrix.tenant }}.md
-            echo "- Check uploaded artifacts for complete violation details" >> pr-check-output/summary-${{ matrix.tenant }}.md
           fi
 
       - name: Upload preview artifacts (always)
@@ -347,8 +343,6 @@ jobs:
                 body: header
               });
             }
-
-
 
       - name: Fail job if security check failed
         if: steps.security_check.outputs.status == 'failed'
