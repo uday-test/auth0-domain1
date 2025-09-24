@@ -17,17 +17,60 @@ concurrency:
 
 jobs:
   # ----------------------------
-  # 1) PATH GUARD (your existing)
+  # 1) SETUP - Install tools once
+  # ----------------------------
+  setup:
+    name: Install Tools
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Conftest
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          VER="v0.62.0"
+          ARCH="$(uname -m)"
+          case "$ARCH" in
+            x86_64|amd64) ASSET="conftest_${VER#v}_Linux_x86_64.tar.gz" ;;
+            aarch64|arm64) ASSET="conftest_${VER#v}_Linux_arm64.tar.gz" ;;
+            *) echo "Unsupported arch: $ARCH" >&2; exit 1 ;;
+          esac
+          URL="https://github.com/open-policy-agent/conftest/releases/download/${VER}/${ASSET}"
+          echo "Downloading $URL"
+          curl -sSfL "$URL" | tar xz
+          chmod +x conftest
+          
+      - name: Upload Conftest binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: conftest-binary
+          path: conftest
+          retention-days: 1
+
+  # ----------------------------
+  # 2) PATH GUARD (using cached conftest)
   # ----------------------------
   path-guard:
     name: Path Guard (Conftest)
     runs-on: ubuntu-latest
+    needs: [setup]
     env:
-      ORG_TOKEN: ${{ secrets.ORG_TOKEN }} # optional: org PAT with read:org
+      ORG_TOKEN: ${{ secrets.ORG_TOKEN }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with: { fetch-depth: 0 }
+
+      - name: Download Conftest
+        uses: actions/download-artifact@v4
+        with:
+          name: conftest-binary
+          path: .
+          
+      - name: Setup Conftest
+        run: |
+          chmod +x conftest
+          sudo mv conftest /usr/local/bin/
+          conftest --version
 
       - name: Determine base & head
         id: revs
@@ -93,23 +136,6 @@ jobs:
           sha256sum "${{ github.workspace }}/conftest-policy/path_guard.rego" || true
           nl -ba "${{ github.workspace }}/conftest-policy/path_guard.rego" | sed -n '1,80p' || true
 
-      - name: Install Conftest (pinned, curl | tar)
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-          VER="v0.62.0"
-          ARCH="$(uname -m)"
-          case "$ARCH" in
-            x86_64|amd64) ASSET="conftest_${VER#v}_Linux_x86_64.tar.gz" ;;
-            aarch64|arm64) ASSET="conftest_${VER#v}_Linux_arm64.tar.gz" ;;
-            *) echo "Unsupported arch: $ARCH" >&2; exit 1 ;;
-          esac
-          URL="https://github.com/open-policy-agent/conftest/releases/download/${VER}/${ASSET}"
-          echo "Downloading $URL"
-          curl -sSfL "$URL" | tar xz
-          sudo mv conftest /usr/local/bin/
-          conftest --version
-
       - name: Conftest verify (unit tests in conftest-policy/ if any)
         shell: bash
         run: |
@@ -138,31 +164,26 @@ jobs:
           retention-days: 7
 
   # ------------------------------------
-  # 2) AUTH0 POLICIES (your existing)
+  # 3) AUTH0 POLICIES (using cached conftest)
   # ------------------------------------
   auth0-policies:
     name: Auth0 Policies (Conftest)
     runs-on: ubuntu-latest
-    needs: [path-guard]
+    needs: [setup, path-guard]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with: { fetch-depth: 0 }
 
-      - name: Install Conftest (same method)
-        shell: bash
+      - name: Download Conftest
+        uses: actions/download-artifact@v4
+        with:
+          name: conftest-binary
+          path: .
+          
+      - name: Setup Conftest
         run: |
-          set -Eeuo pipefail
-          VER="v0.62.0"
-          ARCH="$(uname -m)"
-          case "$ARCH" in
-            x86_64|amd64) ASSET="conftest_${VER#v}_Linux_x86_64.tar.gz" ;;
-            aarch64|arm64) ASSET="conftest_${VER#v}_Linux_arm64.tar.gz" ;;
-            *) echo "Unsupported arch: $ARCH" >&2; exit 1 ;;
-          esac
-          URL="https://github.com/open-policy-agent/conftest/releases/download/${VER}/${ASSET}"
-          echo "Downloading $URL"
-          curl -sSfL "$URL" | tar xz
+          chmod +x conftest
           sudo mv conftest /usr/local/bin/
           conftest --version
 
@@ -206,12 +227,12 @@ jobs:
             "${FILES[@]}"
 
   # -------------------------------------------------------
-  # 3) PREVIEW + ENFORCE SHARED-SEC (reject PR on violation)
+  # 4) PREVIEW + ENFORCE SHARED-SEC
   # -------------------------------------------------------
   preview-and-enforce:
     name: Preview + Enforce Shared-Sec
     runs-on: ubuntu-latest
-    needs: [path-guard]
+    needs: [setup]
     permissions:
       contents: read
       pull-requests: write
