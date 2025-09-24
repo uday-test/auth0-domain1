@@ -9,7 +9,7 @@ branding:
 
 # Tenant session settings (dev is more relaxed)
 tenant:
-  session_lifetime: 6200      # 120 minutes = 7200 seconds
+  session_lifetime: 620000     # 1not vlaid
   idle_session_lifetime: 259200 # 72 hours = 259200 seconds
 
 # Token settings for applications
