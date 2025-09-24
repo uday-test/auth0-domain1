@@ -247,8 +247,8 @@ jobs:
           # Set CI mode for enhanced output
           export CI_MODE=true
           
-          # Run preview script and capture output
-          if ./scripts/preview.sh "${{ matrix.tenant }}" > pr-check-output/full-output-${{ matrix.tenant }}.log 2>&1; then
+          # Run preview script and capture both stdout and stderr
+          if ./scripts/preview.sh "${{ matrix.tenant }}" 2>&1 | tee pr-check-output/full-output-${{ matrix.tenant }}.log; then
             echo "status=passed" >> $GITHUB_OUTPUT
             echo "Security compliance check for ${{ matrix.tenant }}: PASSED ✅" >> pr-check-output/summary-${{ matrix.tenant }}.md
           else
@@ -257,13 +257,17 @@ jobs:
             echo "" >> pr-check-output/summary-${{ matrix.tenant }}.md
             echo "## Security Violations Found:" >> pr-check-output/summary-${{ matrix.tenant }}.md
             echo "\`\`\`" >> pr-check-output/summary-${{ matrix.tenant }}.md
-            grep "❌" pr-check-output/full-output-${{ matrix.tenant }}.log | sed 's/^/  /' >> pr-check-output/summary-${{ matrix.tenant }}.md || echo "  No specific violations captured" >> pr-check-output/summary-${{ matrix.tenant }}.md
+            # Better violation capture - look for multiple patterns
+            grep -E "(❌|dev:|qa:|prod:).*(missing|weaker|violation|enabled.*disabled|disabled.*enabled)" pr-check-output/full-output-${{ matrix.tenant }}.log | sed 's/^/  /' >> pr-check-output/summary-${{ matrix.tenant }}.md || \
+            grep -E "Enforcement failed:" pr-check-output/full-output-${{ matrix.tenant }}.log | sed 's/^/  /' >> pr-check-output/summary-${{ matrix.tenant }}.md || \
+            echo "  Check the full log in artifacts for detailed violation information" >> pr-check-output/summary-${{ matrix.tenant }}.md
             echo "\`\`\`" >> pr-check-output/summary-${{ matrix.tenant }}.md
             echo "" >> pr-check-output/summary-${{ matrix.tenant }}.md
             echo "### Required Actions:" >> pr-check-output/summary-${{ matrix.tenant }}.md
             echo "- Fix all security violations listed above" >> pr-check-output/summary-${{ matrix.tenant }}.md
             echo "- Ensure configurations meet enterprise security baseline requirements" >> pr-check-output/summary-${{ matrix.tenant }}.md
             echo "- Re-run tests locally with \`./scripts/preview.sh ${{ matrix.tenant }}\`" >> pr-check-output/summary-${{ matrix.tenant }}.md
+            echo "- Check uploaded artifacts for complete violation details" >> pr-check-output/summary-${{ matrix.tenant }}.md
           fi
 
       - name: Upload preview artifacts (always)
