@@ -1,0 +1,49 @@
+@@ -1,17 +1,17 @@
+-# Environment metadata (for your tooling)
++# Environment metadata
+ # Auth0 branding configuration
+ branding:
+   colors:
+-    primary: '#228BE6' # dev-blue
+-# Token settings for applications
++    primary: '#0CA678' # prod-green
++# Token settings (prod tightens TTLs)
+ clients:
+   - jwt_configuration:
+-      lifetime_in_seconds: 7200 # 2 hours access token
++      lifetime_in_seconds: 1800 # 30 minutes access token
+     name: default-app
+     refresh_token:
+       expiration_type: expiring
+-      lifetime_in_seconds: 2592000 # 30 days
+-env: dev
++      lifetime_in_seconds: 1209600 # 14 days
++env: prod
+ guardianMfaPolicy:
+   enabled: true
+   factors:
+@@ -50,7 +50,7 @@
+         });
+         callback(null, user, context);
+       }
+-# Tenant session settings (dev is more relaxed)
++# Tenant session settings (prod is stricter)
+ tenant:
+   allowed_logout_urls:
+     - https://enterprise-secure-logout.com
+@@ -59,7 +59,7 @@
+   flags:
+     disable_clickjack_protection_headers: false
+     enable_sso: true
+-  idle_session_lifetime: 259200 # 72 hours = 259200 seconds
++  idle_session_lifetime: 43200 # 12 hours = 43200 seconds
+   refresh_token:
+     expiration_type: expiring
+     idle_lifetime_in_seconds: 2592000 # 30 days
+@@ -67,5 +67,5 @@
+     lifetime_in_seconds: 7776000 # 90 days
+     revoke_on_use: true
+     rotation: true
+-  session_lifetime: 7200 # 120 minutes = 7200 seconds
++  session_lifetime: 1200 # 20 minutes = 1200 seconds
+ # Default token settings for applications

@@ -1,0 +1,70 @@
+@@ -1,14 +1,68 @@
++# Environment metadata
++# Auth0 branding configuration
+ branding:
+   colors:
+-    primary: '#0055AA'
++    primary: '#6741D9' # qa-purple
++# Token settings (qa uses defaults mostly)
++clients:
++  - jwt_configuration:
++      lifetime_in_seconds: 5400 # 1.5 hours access token
++    name: default-app
++env: qa
+ guardianMfaPolicy:
+   enabled: true
+   factors:
+     - enabled: true
+       name: otp
++    - enabled: true
++      name: webauthn-roaming
++    - enabled: false
++      name: sms
+ organizations:
+   - display_name: '{env} {tenant} Organization'
+     name: '{env}-{tenant}-org'
++passwordPolicy:
++  history: 10
++  includeLowercase: true
++  includeNumbers: true
++  includeSymbols: true
++  includeUppercase: true
++  length:
++    min: 16 # This overrides hardening.yml
+ prompts:
+   universal-login:
+     identifier_first: true
++rules:
++  - enabled: true
++    name: Security Audit Login Logger
++    order: 0
++    script: |
++      function (user, context, callback) {
++        console.log('LOGIN_AUDIT:', {
++          userId: user.user_id,
++          email: user.email,
++          ip: context.request.ip,
++          timestamp: new Date().toISOString(),
++          userAgent: context.request.userAgent
++        });
++        callback(null, user, context);
++      }
++# Add the missing tenant section
++tenant:
++  allowed_logout_urls:
++    - https://enterprise-secure-logout.com
++    - https://{base_url}/logout
++  breach_detection_enabled: true
++  flags:
++    disable_clickjack_protection_headers: false
++    enable_sso: true
++  idle_session_lifetime: 86400 # 24 hours (between dev's 72h and prod's 12h)
++  refresh_token:
++    expiration_type: expiring
++    idle_lifetime_in_seconds: 2592000 # 30 days
++    leeway: 604800 # 7 days
++    lifetime_in_seconds: 7776000 # 90 days
++    revoke_on_use: true
++    rotation: true
++  session_lifetime: 3600 # 1 hour (between dev's 2h and prod's 20min)
++# Default token settings for applications
