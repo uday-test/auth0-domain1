@@ -1,0 +1,13 @@
+passwordPolicy:
+  length:
+    min: 13 # This overrides hardening.yml
+  history: 10
+
+guardianMfaPolicy:
+  factors:
+    - name: "otp"
+      enabled: true
+    - name: "webauthn-roaming"
+      enabled: true
+    - name: "sms"
+      enabled: false
