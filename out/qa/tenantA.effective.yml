@@ -1,0 +1,69 @@
+# Environment metadata
+guardianMfaPolicy:
+  enabled: true
+  factors:
+    - name: otp
+      enabled: true
+    - name: webauthn-roaming
+      enabled: true
+    - name: sms
+      enabled: false
+organizations:
+  - name: '{env}-{tenant}-org'
+    display_name: '{env} {tenant} Organization'
+prompts:
+  universal-login:
+    identifier_first: true
+# Auth0 branding configuration
+branding:
+  colors:
+    primary: '#6741D9' # qa-purple
+# Add the missing tenant section
+tenant:
+  allowed_logout_urls:
+    - https://enterprise-secure-logout.com
+    - https://{base_url}/logout
+  flags:
+    enable_sso: true
+    disable_clickjack_protection_headers: false
+  breach_detection_enabled: true
+  refresh_token:
+    rotation: true
+    revoke_on_use: true
+    expiration_type: expiring
+    lifetime_in_seconds: 7776000 # 90 days
+    idle_lifetime_in_seconds: 2592000 # 30 days
+    leeway: 604800 # 7 days
+  session_lifetime: 3600 # 1 hour (between dev's 2h and prod's 20min)
+  idle_session_lifetime: 86400 # 24 hours (between dev's 72h and prod's 12h)
+# Default token settings for applications
+
+passwordPolicy:
+  length:
+    min: 16 # This overrides hardening.yml
+  includeNumbers: true
+  includeSymbols: true
+  includeUppercase: true
+  includeLowercase: true
+  history: 10
+rules:
+  - name: Security Audit Login Logger
+    script: |
+      function (user, context, callback) {
+        console.log('LOGIN_AUDIT:', {
+          userId: user.user_id,
+          email: user.email,
+          ip: context.request.ip,
+          timestamp: new Date().toISOString(),
+          userAgent: context.request.userAgent
+        });
+        callback(null, user, context);
+      }
+    order: 0
+    enabled: true
+# Token settings (qa uses defaults mostly)
+clients:
+  - name: default-app
+    jwt_configuration:
+      lifetime_in_seconds: 5400 # 1.5 hours access token
+env: qa
