@@ -1,4 +1,4 @@
-name: Validate Auth0 Secrets
+name: Validate Auth0 Deployer Secrets
 on:
   workflow_dispatch:
 jobs:
