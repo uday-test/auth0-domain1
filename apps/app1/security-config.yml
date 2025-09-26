@@ -1,0 +1,13 @@
+passwordPolicy:
+  length:
+    min: 16
+  history: 10
+
+guardianMfaPolicy:
+  factors:
+    - name: "otp"
+      enabled: true
+    - name: "webauthn-roaming"
+      enabled: true
+    - name: "sms"
+      enabled: false
