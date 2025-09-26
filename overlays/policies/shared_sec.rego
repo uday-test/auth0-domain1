@@ -114,5 +114,5 @@ deny contains msg if {
     required_factors[required_factor_name] == false
     required_factor_name in object.keys(input_factors)
     input_factors[required_factor_name] == true
-    msg := sprintf("MFA factor '%s' must be disabled but found enabled", [required_factor_name])
+    msg := sprintf("MFA factor '%s' must be disabled but, found enabled", [required_factor_name])
 }
