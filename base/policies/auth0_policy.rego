@@ -21,17 +21,6 @@ deny contains msg if {
   msg := "password (resource owner) grant is blocked globally"
 }
 
-# Special case: benefits-portal + password grant → explicit deny
-deny contains msg if {
-  is_string(input.name)
-  lower(input.name) == "benefits-portal"
-  is_array(input.grant_types)
-  some i
-  is_string(input.grant_types[i])
-  gt := lower(input.grant_types[i])
-  {"password","http://auth0.com/oauth/grant-type/password-realm"}[gt]
-  msg := "benefits-portal: resource owner grant is explicitly blocked for this app"
-}
 
 # MFA bans: email, sms
 deny contains msg if {

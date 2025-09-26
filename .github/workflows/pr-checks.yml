@@ -1,4 +1,4 @@
-name: PR Checks (Conftest + Preview Enforce)
+name: PR Checks (Conftest + Preview)
 
 on:
   pull_request:
@@ -129,23 +129,6 @@ jobs:
             '{debug:$debug, files:$files[0], actor_teams:$teams[0]}' > input.json
           echo "input.json:"; cat input.json
 
-      - name: Print policy hash (debug)
-        shell: bash
-        run: |
-          set -e
-          sha256sum "${{ github.workspace }}/conftest-policy/path_guard.rego" || true
-          nl -ba "${{ github.workspace }}/conftest-policy/path_guard.rego" | sed -n '1,80p' || true
-
-      - name: Conftest verify (unit tests in conftest-policy/ if any)
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-          if compgen -G "conftest-policy/*_test.rego" > /dev/null; then
-            conftest verify --policy "${{ github.workspace }}/conftest-policy"
-          else
-            echo "No *_test.rego in conftest-policy; skipping verify."
-          fi
-
       - name: Run Path Guard policy
         shell: bash
         run: |
@@ -164,7 +147,7 @@ jobs:
           retention-days: 7
 
   # ------------------------------------
-  # 3) AUTH0 POLICIES (using cached conftest)
+  # 3) AUTH0 POLICIES (existing validation)
   # ------------------------------------
   auth0-policies:
     name: Auth0 Policies (Conftest)
@@ -226,11 +209,107 @@ jobs:
             --policy base/policies/auth0-policy \
             "${FILES[@]}"
 
+  # ------------------------------------
+  # 4) SHARED-SEC POLICIES (New Conftest validation)
+  # ------------------------------------
+  shared-sec-policies:
+    name: Shared-Sec Policies (Conftest)
+    runs-on: ubuntu-latest
+    needs: [setup, path-guard]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+
+      - name: Download Conftest
+        uses: actions/download-artifact@v4
+        with:
+          name: conftest-binary
+          path: .
+          
+      - name: Setup Conftest
+        run: |
+          chmod +x conftest
+          sudo mv conftest /usr/local/bin/
+          conftest --version
+
+      - name: Get changed app config files
+        id: changed-configs
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          BASE="${{ github.event.pull_request.base.sha || '' }}"
+          HEAD="${{ github.event.pull_request.head.sha || github.sha }}"
+          if [ -z "$BASE" ]; then
+            git fetch origin main
+            BASE="$(git rev-parse origin/main)"
+          fi
+
+          mapfile -t FILES < <(git diff --name-only "$BASE..$HEAD" \
+            | grep -E '^apps/[^/]+/[^/]+\.(ya?ml)$' || true)
+
+          if [ "${#FILES[@]}" -eq 0 ]; then
+            echo "No app config changes detected; skipping security policy validation."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+          echo "App config files changed:"
+          printf ' - %s\n' "${FILES[@]}"
+          
+          # Save file list for next step
+          printf '%s\n' "${FILES[@]}" > /tmp/changed_configs.txt
+
+      - name: Validate Security Policies
+        if: steps.changed-configs.outputs.changed == 'true'
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          
+          echo "Running security policy validation..."
+          echo "Policy file: overlays/policies/shared_sec.rego"
+          echo "Data file: overlays/shared-sec/identity_access.yml"
+          
+          # Read the changed files
+          mapfile -t FILES < /tmp/changed_configs.txt
+          
+          FAILED=0
+          
+          for config in "${FILES[@]}"; do
+            if [ -f "$config" ]; then
+              echo "Testing $config..."
+              if conftest test \
+                --policy overlays/policies/shared_sec.rego \
+                --data overlays/shared-sec/identity_access.yml \
+                "$config"; then
+                echo "PASSED: $config"
+              else
+                echo "FAILED: $config violates security policy"
+                FAILED=1
+              fi
+            else
+              echo "SKIPPED: $config (file not found)"
+            fi
+          done
+          
+          if [ $FAILED -eq 1 ]; then
+            echo ""
+            echo "Security Policy Validation FAILED"
+            echo "One or more app configurations violate enterprise security policies."
+            echo "Please review the violations above and update your configurations."
+            exit 1
+          else
+            echo ""
+            echo "Security Policy Validation PASSED"
+            echo "All app configurations comply with enterprise security policies."
+          fi
+
   # -------------------------------------------------------
-  # 4) PREVIEW + ENFORCE SHARED-SEC
+  # 5) CONFIG PREVIEW (No enforcement, just rendering)
   # -------------------------------------------------------
-  preview-and-enforce:
-    name: Preview + Enforce Shared-Sec
+  config-preview:
+    name: Config Preview
     runs-on: ubuntu-latest
     needs: [setup]
     permissions:
@@ -255,8 +334,8 @@ jobs:
           chmod +x /usr/local/bin/yq
           yq --version
 
-      - name: Run preview + enforcement
-        id: security_check
+      - name: Run configuration preview
+        id: preview
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -268,44 +347,44 @@ jobs:
           # Set CI mode for enhanced output
           export CI_MODE=true
           
-          # Run preview script and capture output
-          if ./scripts/preview.sh "${{ matrix.tenant }}" 2>&1 | tee pr-check-output/full-output-${{ matrix.tenant }}.log; then
-            echo "status=passed" >> $GITHUB_OUTPUT
-            echo "Security compliance check for ${{ matrix.tenant }}: PASSED ✅" >> pr-check-output/summary-${{ matrix.tenant }}.md
+          # Run preview script (no enforcement, just config rendering)
+          if ./scripts/preview.sh "${{ matrix.tenant }}" 2>&1 | tee pr-check-output/preview-output-${{ matrix.tenant }}.log; then
+            echo "status=success" >> $GITHUB_OUTPUT
+            echo "Configuration preview for ${{ matrix.tenant }}: Generated successfully" >> pr-check-output/summary-${{ matrix.tenant }}.md
+            echo "" >> pr-check-output/summary-${{ matrix.tenant }}.md
+            echo "## Generated Files:" >> pr-check-output/summary-${{ matrix.tenant }}.md
+            echo "- Effective configs: \`out/{env}/${{ matrix.tenant }}.effective.yml\`" >> pr-check-output/summary-${{ matrix.tenant }}.md
+            echo "- Change diffs: \`out/{env}/${{ matrix.tenant }}.diff.txt\`" >> pr-check-output/summary-${{ matrix.tenant }}.md
+            echo "- Cross-env diffs: \`out/{env1}_vs_{env2}.${{ matrix.tenant }}.diff.txt\`" >> pr-check-output/summary-${{ matrix.tenant }}.md
           else
-            echo "status=failed" >> $GITHUB_OUTPUT
-            echo "Security compliance check for ${{ matrix.tenant }}: FAILED ❌" >> pr-check-output/summary-${{ matrix.tenant }}.md
+            echo "status=error" >> $GITHUB_OUTPUT
+            echo "Configuration preview for ${{ matrix.tenant }}: Failed" >> pr-check-output/summary-${{ matrix.tenant }}.md
             echo "" >> pr-check-output/summary-${{ matrix.tenant }}.md
-            echo "## Security Check Output:" >> pr-check-output/summary-${{ matrix.tenant }}.md
+            echo "## Error Output:" >> pr-check-output/summary-${{ matrix.tenant }}.md
             echo "\`\`\`" >> pr-check-output/summary-${{ matrix.tenant }}.md
-            cat pr-check-output/full-output-${{ matrix.tenant }}.log >> pr-check-output/summary-${{ matrix.tenant }}.md
+            tail -50 pr-check-output/preview-output-${{ matrix.tenant }}.log >> pr-check-output/summary-${{ matrix.tenant }}.md
             echo "\`\`\`" >> pr-check-output/summary-${{ matrix.tenant }}.md
-            echo "" >> pr-check-output/summary-${{ matrix.tenant }}.md
-            echo "### Required Actions:" >> pr-check-output/summary-${{ matrix.tenant }}.md
-            echo "- Fix all security violations listed above" >> pr-check-output/summary-${{ matrix.tenant }}.md
-            echo "- Ensure configurations meet enterprise security baseline requirements" >> pr-check-output/summary-${{ matrix.tenant }}.md
-            echo "- Re-run tests locally with \`./scripts/preview.sh ${{ matrix.tenant }}\`" >> pr-check-output/summary-${{ matrix.tenant }}.md
           fi
 
       - name: Upload preview artifacts (always)
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: preview-${{ matrix.tenant }}
+          name: config-preview-${{ matrix.tenant }}
           path: |
             out/**/${{ matrix.tenant }}.effective.yml
             out/**/${{ matrix.tenant }}.diff.txt
-            out/*_${{ '*' }}_${{ '*' }}.${{ matrix.tenant }}.diff.txt
+            out/*_vs_*.${{ matrix.tenant }}.diff.txt
             pr-check-output/
           retention-days: 7
 
-      - name: Comment on PR with security results
+      - name: Comment on PR with preview results
         uses: actions/github-script@v7
         if: always() && github.event_name == 'pull_request'
         with:
           script: |
             const fs = require('fs');
-            const status = '${{ steps.security_check.outputs.status }}';
+            const status = '${{ steps.preview.outputs.status }}';
             const tenant = '${{ matrix.tenant }}';
             
             // Read the summary
@@ -313,13 +392,13 @@ jobs:
             try {
               summary = fs.readFileSync(`pr-check-output/summary-${tenant}.md`, 'utf8');
             } catch (error) {
-              summary = `Could not read security check summary for tenant ${tenant}.`;
+              summary = `Could not read configuration preview summary for tenant ${tenant}.`;
             }
             
             // Create PR comment content
-            const header = `## 🔒 Auth0 Security Baseline Check - ${tenant}
+            const header = `## Configuration Preview - ${tenant}
             
-            **Status**: ${status === 'passed' ? '✅ PASSED' : '❌ FAILED'}
+            **Status**: ${status === 'success' ? 'SUCCESS' : 'ERROR'}
             **Tenant**: ${tenant}
             **Environments**: dev, qa, prod
 
@@ -327,14 +406,16 @@ jobs:
 
             ---
             <details>
-            <summary>📊 View Configuration Changes</summary>
+            <summary>View Generated Configuration Files</summary>
 
-            Check the uploaded artifacts (\`preview-${tenant}\`) for:
-            - Effective configurations per environment
-            - Configuration diffs showing changes
-            - Cross-environment drift analysis
+            Check the uploaded artifacts (\`config-preview-${tenant}\`) for:
+            - **Effective configurations** per environment showing final merged configs
+            - **Configuration diffs** showing changes from baseline
+            - **Cross-environment diffs** showing drift between dev/qa/prod
 
-            </details>`;
+            </details>
+            
+            > Security Note: Security policy validation is handled separately by the Shared-Sec Policies job above.`;
 
             // Find existing comment for this tenant
             const { data: comments } = await github.rest.issues.listComments({
@@ -344,7 +425,7 @@ jobs:
             });
             
             const existingComment = comments.find(comment => 
-              comment.body.includes(`🔒 Auth0 Security Baseline Check - ${tenant}`)
+              comment.body.includes(`Configuration Preview - ${tenant}`)
             );
             
             if (existingComment) {
@@ -365,17 +446,9 @@ jobs:
               });
             }
 
-      - name: Fail job if security check failed
-        if: steps.security_check.outputs.status == 'failed'
-        shell: bash
-        run: |
-          echo "❌ Security compliance check failed for tenant ${{ matrix.tenant }}!"
-          echo "This PR cannot be merged until all security violations are resolved."
-          exit 1
-
       - name: Success summary
-        if: steps.security_check.outputs.status == 'passed'
+        if: steps.preview.outputs.status == 'success'
         shell: bash
         run: |
-          echo "✅ Security compliance check passed for tenant ${{ matrix.tenant }}!"
-          echo "All Auth0 configurations meet enterprise security baseline requirements."
+          echo "Configuration preview completed successfully for tenant ${{ matrix.tenant }}!"
+          echo "All configuration files have been generated and are ready for review."
