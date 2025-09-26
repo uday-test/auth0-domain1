@@ -174,7 +174,7 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          DIR="base/policies/auth0-policy"
+          DIR="base/policies"
           if [ -d "$DIR" ] && compgen -G "${DIR}/*_test.rego" > /dev/null; then
             conftest verify "$DIR"
           else
@@ -206,7 +206,7 @@ jobs:
 
           conftest test \
             --namespace auth0.policy \
-            --policy base/policies/auth0-policy \
+            --policy base/policies \
             "${FILES[@]}"
 
   # ------------------------------------

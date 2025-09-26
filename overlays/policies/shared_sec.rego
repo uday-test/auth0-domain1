@@ -42,23 +42,6 @@ input_object_factors := {lower(name): factors[name].enabled |
     is_object(factors[name])
 }
 
-# ========== DEBUG OUTPUT ==========
-
-warn contains msg if {
-    msg := sprintf("DEBUG: Required min length: %d, Input min length: %d", [
-        required_password_min, 
-        object.get(object.get(input.passwordPolicy, "length", {}), "min", -999)
-    ])
-}
-
-warn contains msg if {
-    msg := sprintf("DEBUG: Required factors: %v", [required_factors])
-}
-
-warn contains msg if {
-    msg := sprintf("DEBUG: Input factors: %v", [input_factors])
-}
-
 # ========== VALIDATION HELPERS ==========
 
 valid_password_config if {
@@ -108,28 +91,28 @@ deny contains msg if {
 # Deny if required MFA factor is missing
 deny contains msg if {
     valid_mfa_config
-    some factor_name, required_enabled in required_factors
-    required_enabled == true
-    not factor_name in input_factors
-    msg := sprintf("Required MFA factor '%s' is missing", [factor_name])
+    some required_factor_name in object.keys(required_factors)
+    required_factors[required_factor_name] == true
+    not required_factor_name in object.keys(input_factors)
+    msg := sprintf("Required MFA factor '%s' is missing from configuration", [required_factor_name])
 }
 
 # Deny if required MFA factor is disabled when it should be enabled
 deny contains msg if {
     valid_mfa_config
-    some factor_name, required_enabled in required_factors
-    required_enabled == true
-    factor_name in input_factors
-    input_factors[factor_name] != true
-    msg := sprintf("MFA factor '%s' must be enabled", [factor_name])
+    some required_factor_name in object.keys(required_factors)
+    required_factors[required_factor_name] == true
+    required_factor_name in object.keys(input_factors)
+    input_factors[required_factor_name] != true
+    msg := sprintf("Required MFA factor '%s' must be enabled but found disabled", [required_factor_name])
 }
 
 # Deny if forbidden MFA factor is enabled when it should be disabled
 deny contains msg if {
     valid_mfa_config
-    some factor_name, required_enabled in required_factors
-    required_enabled == false
-    factor_name in input_factors
-    input_factors[factor_name] == true
-    msg := sprintf("MFA factor '%s' must be disabled", [factor_name])
+    some required_factor_name in object.keys(required_factors)
+    required_factors[required_factor_name] == false
+    required_factor_name in object.keys(input_factors)
+    input_factors[required_factor_name] == true
+    msg := sprintf("MFA factor '%s' must be disabled but found enabled", [required_factor_name])
 }
