@@ -206,7 +206,7 @@ jobs:
 
           conftest test \
             --namespace auth0.policy \
-            --policy base/policies/auth0-policy \
+            --policy base/policies \
             "${FILES[@]}"
 
   # ------------------------------------
