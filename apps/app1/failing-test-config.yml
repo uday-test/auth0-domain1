@@ -1,0 +1,24 @@
+# AUTH0 POLICY VIOLATIONS
+app_type: "native"              # Invalid - only regular_web/spa allowed
+grant_types:
+  - "password"                  # Blocked by auth0.policy
+  - "authorization_code"
+mfa_factors:
+  - "sms"                       # Blocked by auth0.policy
+  - "email"                     # Blocked by auth0.policy
+id_token_lifetime: 800          # Too long - must be < 600s
+
+# SHARED-SEC POLICY VIOLATIONS  
+passwordPolicy:
+  length:
+    min: 8                      # Too weak - must be >= 16
+  history: 3                    # Too low - must be >= 10
+
+guardianMfaPolicy:
+  factors:
+    - name: "otp"
+      enabled: false            # Should be enabled
+    - name: "webauthn-roaming"
+      enabled: false            # Should be enabled
+    - name: "sms"
+      enabled: true             # Should be disabled
