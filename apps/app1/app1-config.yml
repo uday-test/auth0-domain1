@@ -1,6 +1,6 @@
 passwordPolicy:
   length:
-    min: 13 # This overrides hardening.yml
+    min: 12 # This overrides hardening.yml
   history: 10
 
 guardianMfaPolicy:
