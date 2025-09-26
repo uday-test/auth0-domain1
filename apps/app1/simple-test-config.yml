@@ -1,0 +1,22 @@
+# Basic Auth0 config that passes auth0.policy
+app_type: "regular_web"
+grant_types:
+  - "authorization_code"
+mfa_factors:
+  - "otp"
+id_token_lifetime: 300
+
+# Basic config that passes current shared_sec.rego  
+passwordPolicy:
+  length:
+    min: 16
+  history: 10
+
+guardianMfaPolicy:
+  factors:
+    - name: "otp"
+      enabled: true
+    - name: "webauthn-roaming"
+      enabled: true
+    - name: "sms"
+      enabled: false
