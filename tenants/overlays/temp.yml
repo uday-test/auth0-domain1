@@ -1,0 +1,95 @@
+oidc:
+  issuer: "https://tenanta.auth0.com/"
+  supported_grant_types:
+    - "authorization_code"
+    - "refresh_token"
+  supported_response_types:
+    - "code"
+  security:
+    require_https: true
+    enforce_pkce: true
+
+connections:
+  database:
+    - name: "Username-Password-Authentication"
+      password_policy: "excellent"
+      password_complexity_options:
+        min_length: 12
+        require_uppercase: true
+        require_lowercase: true
+        require_numbers: true
+        require_symbols: true
+      brute_force_protection: true
+
+guardian:
+  enabled: true
+  factors:
+    - name: "otp"
+      enabled: true
+    - name: "sms"
+      enabled: true
+
+sessions:
+  lifetime_in_hours: 4
+
+tokens:
+  access_token:
+    lifetime_in_seconds: 900
+  refresh_token:
+    lifetime_in_seconds: 604800
+    rotation_enabled: true
+
+security:
+  allowed_origins:
+    - "https://app.example.com"
+
+anomaly_detection:
+  brute_force_protection:
+    enabled: true
+  breached_password_detection:
+    enabled: true
+
+attack_protection:
+  brute_force_protection:
+    enabled: true
+    max_attempts: 5
+    block_duration: 900
+  breached_password_detection:
+    enabled: true
+
+bot_detection:
+  enabled: true
+  recaptcha:
+    v3:
+      enabled: true
+      threshold: 0.7
+
+adaptive_mfa:
+  enabled: true
+  risk_factors:
+    - name: "new_device"
+      enabled: true
+
+geo_security:
+  country_restrictions:
+    enabled: true
+    allowed_countries: []
+
+branding:
+  logo_url: "https://cdn.example.com/prod/logo.png"
+  colors:
+    primary: "#1a365d"
+
+email_templates:
+  verify_email:
+    from: "noreply@example.com"
+    subject: "Verify Email"
+  reset_password:
+    from: "noreply@example.com"
+    subject: "Reset Password"
+
+universal_login:
+  new_universal_login_experience_enabled: true
+
+custom_domain:
+  domain: "auth.example.com"

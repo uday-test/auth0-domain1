@@ -1,0 +1,9 @@
+oidc:
+  issuer: "https://qa-tenanta.auth0.com/"
+  supported_grant_types:
+    - "authorization_code"
+  supported_response_types:
+    - "code"
+  security:
+    require_https: false
+    enforce_pkce: true

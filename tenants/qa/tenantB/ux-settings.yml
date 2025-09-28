@@ -1,0 +1,18 @@
+branding:
+  logo_url: "https://cdn.example.com/qa/logo.png"
+  colors:
+    primary: "#1a365d"
+
+email_templates:
+  verify_email:
+    from: "qa-noreply@example.com"
+    subject: "[QA] Verify Email"
+  reset_password:
+    from: "qa-noreply@example.com"
+    subject: "[QA] Reset Password"
+
+universal_login:
+  new_universal_login_experience_enabled: true
+
+custom_domain:
+  domain: "qa-auth.example.com"

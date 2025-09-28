@@ -1,0 +1,11 @@
+risk_standards:
+  attack_protection:
+    brute_force_required:
+      dev: false
+      qa: true
+      prod: true
+  
+  bot_detection_required:
+    dev: false
+    qa: true
+    prod: true

@@ -39,11 +39,21 @@ jobs:
           curl -sSfL "$URL" | tar xz
           chmod +x conftest
           
-      - name: Upload Conftest binary
+      - name: Install yq
+        shell: bash
+        run: |
+          VER="v4.44.3"
+          curl -sSfL -o yq \
+            "https://github.com/mikefarah/yq/releases/download/${VER}/yq_linux_amd64"
+          chmod +x yq
+          
+      - name: Upload binaries
         uses: actions/upload-artifact@v4
         with:
-          name: conftest-binary
-          path: conftest
+          name: conftest-and-yq-binaries
+          path: |
+            conftest
+            yq
           retention-days: 1
 
   # ----------------------------
@@ -60,16 +70,17 @@ jobs:
         uses: actions/checkout@v4
         with: { fetch-depth: 0 }
 
-      - name: Download Conftest
+      - name: Download binaries
         uses: actions/download-artifact@v4
         with:
-          name: conftest-binary
+          name: conftest-and-yq-binaries
           path: .
           
-      - name: Setup Conftest
+      - name: Setup tools
         run: |
-          chmod +x conftest
+          chmod +x conftest yq
           sudo mv conftest /usr/local/bin/
+          sudo mv yq /usr/local/bin/
           conftest --version
 
       - name: Determine base & head
@@ -147,7 +158,145 @@ jobs:
           retention-days: 7
 
   # ------------------------------------
-  # 3) AUTH0 POLICIES (existing validation)
+  # 3) AUTH0 CONFIGURATION VALIDATION (New)
+  # ------------------------------------
+  auth0-config-validation:
+    name: Auth0 Config Validation
+    runs-on: ubuntu-latest
+    needs: [setup, path-guard]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+
+      - name: Download binaries
+        uses: actions/download-artifact@v4
+        with:
+          name: conftest-and-yq-binaries
+          path: .
+          
+      - name: Setup tools
+        run: |
+          chmod +x conftest yq
+          sudo mv conftest /usr/local/bin/
+          sudo mv yq /usr/local/bin/
+          conftest --version
+          yq --version
+
+      - name: Check for Auth0 config changes
+        id: check-changes
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          BASE="${{ github.event.pull_request.base.sha || '' }}"
+          HEAD="${{ github.event.pull_request.head.sha || github.sha }}"
+          if [ -z "$BASE" ]; then
+            git fetch origin main
+            BASE="$(git rev-parse origin/main)"
+          fi
+
+          # Check for changes in tenants directory
+          if git diff --name-only "$BASE..$HEAD" | grep -E '^tenants/(dev|qa|prod)/tenant.*\.yml$' > /dev/null; then
+            echo "auth0-changes=true" >> "$GITHUB_OUTPUT"
+            echo "Auth0 configuration changes detected"
+          else
+            echo "auth0-changes=false" >> "$GITHUB_OUTPUT"
+            echo "No Auth0 configuration changes detected"
+          fi
+
+      - name: Validate Auth0 configurations
+        if: steps.check-changes.outputs.auth0-changes == 'true'
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          cd tenants
+          
+          # Define environments to validate
+          ENVIRONMENTS=("dev" "qa" "prod")
+          
+          echo "Starting Auth0 configuration validation for all environments..."
+          
+          VALIDATION_FAILED=false
+          
+          for ENV in "${ENVIRONMENTS[@]}"; do
+            echo ""
+            echo "=================================================="
+            echo "Processing Environment: $ENV"
+            echo "=================================================="
+            
+            # Clean up any existing merged files for this environment
+            rm -f ${ENV}-tenant*-combined.yml
+            
+            # Check if environment directory exists
+            if [ ! -d "$ENV" ]; then
+              echo "Warning: Environment directory '$ENV' not found, skipping..."
+              continue
+            fi
+            
+            # Merge configs for each tenant in this environment
+            tenant_count=0
+            for tenant_dir in ${ENV}/tenant*/; do
+              if [ -d "$tenant_dir" ]; then
+                tenant_name=$(basename "$tenant_dir")
+                echo "Merging configs for $tenant_name..."
+                
+                # Check if YAML files exist
+                if ls ${tenant_dir}/*.yml 1> /dev/null 2>&1; then
+                  # Merge all YAML files for this tenant
+                  yq eval-all '. as $item ireduce ({}; . * $item)' \
+                    ${tenant_dir}/*.yml \
+                    > ${ENV}-${tenant_name}-combined.yml
+                  
+                  echo "Created ${ENV}-${tenant_name}-combined.yml"
+                  ((tenant_count++))
+                else
+                  echo "Warning: No YAML files found in $tenant_dir"
+                fi
+              fi
+            done
+            
+            # Run validation for this environment if we have merged files
+            if [ $tenant_count -gt 0 ]; then
+              echo ""
+              echo "Running conftest validation for $ENV environment..."
+              echo "Validating $(ls ${ENV}-tenant*-combined.yml 2>/dev/null | wc -l) tenant(s)"
+              
+              if conftest test --policy overlays/policies/ --data overlays/validators/ ${ENV}-tenant*-combined.yml; then
+                echo "✅ $ENV environment validation PASSED"
+              else
+                echo "❌ $ENV environment validation FAILED"
+                VALIDATION_FAILED=true
+              fi
+            else
+              echo "No tenants found in $ENV environment"
+            fi
+            
+            # Clean up merged files
+            rm -f ${ENV}-tenant*-combined.yml
+          done
+          
+          echo ""
+          echo "=================================================="
+          echo "Auth0 Configuration Validation Summary Complete"
+          echo "=================================================="
+          
+          if [ "$VALIDATION_FAILED" = true ]; then
+            echo "One or more environment validations failed"
+            echo "Please review the violations above and update your configurations to comply with the standards."
+            exit 1
+          else
+            echo "All Auth0 configurations comply with enterprise security standards"
+          fi
+
+      - name: Skip validation message
+        if: steps.check-changes.outputs.auth0-changes == 'false'
+        shell: bash
+        run: |
+          echo "No Auth0 configuration changes detected in this PR."
+          echo "Skipping Auth0 configuration validation."
+
+  # ------------------------------------
+  # 4) AUTH0 POLICIES (existing validation)
   # ------------------------------------
   auth0-policies:
     name: Auth0 Policies (Conftest)
@@ -158,16 +307,17 @@ jobs:
         uses: actions/checkout@v4
         with: { fetch-depth: 0 }
 
-      - name: Download Conftest
+      - name: Download binaries
         uses: actions/download-artifact@v4
         with:
-          name: conftest-binary
+          name: conftest-and-yq-binaries
           path: .
           
-      - name: Setup Conftest
+      - name: Setup tools
         run: |
-          chmod +x conftest
+          chmod +x conftest yq
           sudo mv conftest /usr/local/bin/
+          sudo mv yq /usr/local/bin/
           conftest --version
 
       - name: Conftest verify (Auth0 policy unit tests if present)
@@ -210,7 +360,7 @@ jobs:
             "${FILES[@]}"
 
   # ------------------------------------
-  # 4) SHARED-SEC POLICIES (New Conftest validation)
+  # 5) SHARED-SEC POLICIES (Conftest validation)
   # ------------------------------------
   shared-sec-policies:
     name: Shared-Sec Policies (Conftest)
@@ -221,16 +371,17 @@ jobs:
         uses: actions/checkout@v4
         with: { fetch-depth: 0 }
 
-      - name: Download Conftest
+      - name: Download binaries
         uses: actions/download-artifact@v4
         with:
-          name: conftest-binary
+          name: conftest-and-yq-binaries
           path: .
           
-      - name: Setup Conftest
+      - name: Setup tools
         run: |
-          chmod +x conftest
+          chmod +x conftest yq
           sudo mv conftest /usr/local/bin/
+          sudo mv yq /usr/local/bin/
           conftest --version
 
       - name: Get changed app config files
@@ -306,7 +457,7 @@ jobs:
           fi
 
   # -------------------------------------------------------
-  # 5) CONFIG PREVIEW (No enforcement, just rendering)
+  # 6) CONFIG PREVIEW (No enforcement, just rendering)
   # -------------------------------------------------------
   config-preview:
     name: Config Preview
@@ -324,14 +475,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install yq (v4)
-        shell: bash
+      - name: Download binaries
+        uses: actions/download-artifact@v4
+        with:
+          name: conftest-and-yq-binaries
+          path: .
+          
+      - name: Setup tools
         run: |
-          set -Eeuo pipefail
-          VER="v4.44.3"
-          curl -sSfL -o /usr/local/bin/yq \
-            "https://github.com/mikefarah/yq/releases/download/${VER}/yq_linux_amd64"
-          chmod +x /usr/local/bin/yq
+          chmod +x conftest yq
+          sudo mv conftest /usr/local/bin/
+          sudo mv yq /usr/local/bin/
           yq --version
 
       - name: Run configuration preview

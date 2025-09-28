@@ -1,0 +1,18 @@
+branding:
+  logo_url: "https://cdn.example.com/prod/logo.png"
+  colors:
+    primary: "#1a365d"
+
+email_templates:
+  verify_email:
+    from: "noreply@example.com"
+    subject: "Verify Email"
+  reset_password:
+    from: "noreply@example.com"
+    subject: "Reset Password"
+
+universal_login:
+  new_universal_login_experience_enabled: true
+
+custom_domain:
+  domain: "auth.example.com"

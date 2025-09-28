@@ -1,0 +1,12 @@
+branding:
+  logo_url: "https://cdn.example.com/dev/logo.png"
+  colors:
+    primary: "#28a745"
+
+email_templates:
+  verify_email:
+    from: "dev-noreply@example.com"
+    subject: "[DEV] Verify Email"
+
+universal_login:
+  new_universal_login_experience_enabled: true

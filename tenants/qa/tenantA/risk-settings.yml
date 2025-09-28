@@ -1,0 +1,25 @@
+attack_protection:
+  brute_force_protection:
+    enabled: true
+    max_attempts: 5
+    block_duration: 900
+  breached_password_detection:
+    enabled: true
+
+bot_detection:
+  enabled: true
+  recaptcha:
+    v3:
+      enabled: true
+      threshold: 0.7
+
+adaptive_mfa:
+  enabled: true
+  risk_factors:
+    - name: "new_device"
+      enabled: true
+
+geo_security:
+  country_restrictions:
+    enabled: true
+    allowed_countries: ["US", "CA"]

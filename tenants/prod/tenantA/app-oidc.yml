@@ -1,0 +1,10 @@
+oidc:
+  issuer: "https://tenanta.auth0.com/"
+  supported_grant_types:
+    - "authorization_code"
+    - "refresh_token"
+  supported_response_types:
+    - "code"
+  security:
+    require_https: true
+    enforce_pkce: true

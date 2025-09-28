@@ -1,0 +1,22 @@
+auth_standards:
+  password_requirements:
+    minimum_policy:
+      dev: "fair"
+      qa: "excellent"
+      prod: "excellent"
+    min_length:
+      dev: 6
+      qa: 12
+      prod: 12
+  
+  guardian_requirements:
+    mfa_enforcement:
+      dev: false
+      qa: true
+      prod: true
+  
+  token_requirements:
+    max_access_token:
+      dev: 3600
+      qa: 1800
+      prod: 900

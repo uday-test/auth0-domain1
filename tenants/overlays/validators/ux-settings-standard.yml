@@ -1,0 +1,7 @@
+ux_standards:
+  branding_requirements:
+    approved_domains: ["cdn.example.com"]
+    approved_colors: ["#1a365d", "#28a745"]
+  
+  email_requirements:
+    approved_domains: ["example.com", "noreply.example.com"]

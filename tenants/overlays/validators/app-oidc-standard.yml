@@ -1,0 +1,15 @@
+oidc_standards:
+  security_requirements:
+    require_https:
+      dev: false
+      qa: true
+      prod: true
+    enforce_pkce:
+      dev: false
+      qa: true
+      prod: true
+  
+  allowed_grant_types:
+    dev: ["authorization_code", "implicit", "refresh_token"]
+    qa: ["authorization_code", "refresh_token"]
+    prod: ["authorization_code", "refresh_token"]
