@@ -6,4 +6,4 @@ oidc:
     - "code"
   security:
     require_https: false
-    enforce_pkce: true
+    enforce_pkce: false
