@@ -1,7 +1,7 @@
 connections:
   database:
     - name: "Username-Password-Authentication"
-      password_policy: "fair"
+      password_policy: "excellent"
       password_complexity_options:
         min_length: 6
       brute_force_protection: false
