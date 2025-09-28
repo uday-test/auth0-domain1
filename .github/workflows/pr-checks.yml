@@ -158,7 +158,7 @@ jobs:
           retention-days: 7
 
   # ------------------------------------
-  # 3) AUTH0 CONFIGURATION VALIDATION (New)
+  # 3) AUTH0 CONFIGURATION VALIDATION (with debug)
   # ------------------------------------
   auth0-config-validation:
     name: Auth0 Config Validation
@@ -183,6 +183,34 @@ jobs:
           conftest --version
           yq --version
 
+      - name: Debug - Check repository structure
+        shell: bash
+        run: |
+          echo "=== REPOSITORY STRUCTURE DEBUG ==="
+          echo "Current working directory: $(pwd)"
+          echo "Repository contents:"
+          ls -la
+          
+          echo ""
+          echo "Checking for tenants directory:"
+          ls -la tenants/ || echo "ERROR: tenants directory not found"
+          
+          echo ""
+          echo "Checking for overlays directory:"
+          ls -la overlays/ || echo "ERROR: overlays directory not found"
+          
+          echo ""
+          echo "Checking validators:"
+          ls -la overlays/validators/ || echo "ERROR: validators directory not found"
+          
+          echo ""
+          echo "Checking policies:"
+          ls -la overlays/policies/ || echo "ERROR: policies directory not found"
+          
+          echo ""
+          echo "Environment directories in tenants/:"
+          ls -la tenants/ || echo "No tenants directory"
+
       - name: Check for Auth0 config changes
         id: check-changes
         shell: bash
@@ -195,13 +223,22 @@ jobs:
             BASE="$(git rev-parse origin/main)"
           fi
 
-          # Check for changes in tenants directory
-          if git diff --name-only "$BASE..$HEAD" | grep -E '^tenants/(dev|qa|prod)/tenant.*\.yml$' > /dev/null; then
+          echo "=== CHANGE DETECTION DEBUG ==="
+          echo "BASE: $BASE"
+          echo "HEAD: $HEAD"
+          
+          echo ""
+          echo "All changed files in this PR:"
+          git diff --name-only "$BASE..$HEAD" || echo "No changes detected"
+          
+          echo ""
+          echo "Checking for Auth0 config changes:"
+          if git diff --name-only "$BASE..$HEAD" | grep -E '^tenants/(dev|qa|prod)/tenant.*\.yml$'; then
             echo "auth0-changes=true" >> "$GITHUB_OUTPUT"
-            echo "Auth0 configuration changes detected"
+            echo "AUTH0 CHANGES DETECTED"
           else
             echo "auth0-changes=false" >> "$GITHUB_OUTPUT"
-            echo "No Auth0 configuration changes detected"
+            echo "NO AUTH0 CHANGES DETECTED"
           fi
 
       - name: Validate Auth0 configurations
@@ -209,12 +246,25 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
+          
+          echo "=== AUTH0 VALIDATION DEBUG ==="
+          echo "Starting Auth0 configuration validation..."
+          
+          # Debug initial state
+          echo "Current directory: $(pwd)"
+          echo "Contents: $(ls -la)"
+          
           cd tenants
+          echo "Changed to tenants directory: $(pwd)"
+          echo "Tenants directory contents:"
+          ls -la
           
           # Define environments to validate
           ENVIRONMENTS=("dev" "qa" "prod")
           
-          echo "Starting Auth0 configuration validation for all environments..."
+          echo ""
+          echo "=== VALIDATION PROCESS ==="
+          echo "Environments to check: ${ENVIRONMENTS[*]}"
           
           VALIDATION_FAILED=false
           
@@ -226,66 +276,111 @@ jobs:
             
             # Clean up any existing merged files for this environment
             rm -f ${ENV}-tenant*-combined.yml
+            echo "Cleaned up existing merged files"
             
             # Check if environment directory exists
             if [ ! -d "$ENV" ]; then
-              echo "Warning: Environment directory '$ENV' not found, skipping..."
+              echo "WARNING: Environment directory '$ENV' not found, skipping..."
               continue
             fi
+            
+            echo "Environment directory $ENV exists"
+            echo "Contents of $ENV:"
+            ls -la $ENV/
             
             # Merge configs for each tenant in this environment
             tenant_count=0
             for tenant_dir in ${ENV}/tenant*/; do
               if [ -d "$tenant_dir" ]; then
                 tenant_name=$(basename "$tenant_dir")
-                echo "Merging configs for $tenant_name..."
+                echo ""
+                echo "--- Processing tenant: $tenant_name ---"
+                echo "Tenant directory: $tenant_dir"
+                echo "Contents:"
+                ls -la "$tenant_dir"
                 
                 # Check if YAML files exist
                 if ls ${tenant_dir}/*.yml 1> /dev/null 2>&1; then
-                  # Merge all YAML files for this tenant
-                  yq eval-all '. as $item ireduce ({}; . * $item)' \
-                    ${tenant_dir}/*.yml \
-                    > ${ENV}-${tenant_name}-combined.yml
+                  echo "YAML files found in $tenant_dir:"
+                  ls -la ${tenant_dir}/*.yml
                   
-                  echo "Created ${ENV}-${tenant_name}-combined.yml"
-                  ((tenant_count++))
+                  echo "Running yq merge command..."
+                  echo "Command: yq eval-all '. as \$item ireduce ({}; . * \$item)' ${tenant_dir}/*.yml > ${ENV}-${tenant_name}-combined.yml"
+                  
+                  # Merge all YAML files for this tenant
+                  if yq eval-all '. as $item ireduce ({}; . * $item)' \
+                    ${tenant_dir}/*.yml \
+                    > ${ENV}-${tenant_name}-combined.yml; then
+                    
+                    echo "SUCCESS: Created ${ENV}-${tenant_name}-combined.yml"
+                    echo "Merged file size: $(wc -l ${ENV}-${tenant_name}-combined.yml)"
+                    echo "First 20 lines of merged file:"
+                    head -20 ${ENV}-${tenant_name}-combined.yml
+                    ((tenant_count++))
+                  else
+                    echo "ERROR: Failed to merge YAML files for $tenant_name"
+                    VALIDATION_FAILED=true
+                    continue
+                  fi
                 else
-                  echo "Warning: No YAML files found in $tenant_dir"
+                  echo "WARNING: No YAML files found in $tenant_dir"
                 fi
+              else
+                echo "Skipping $tenant_dir (not a directory)"
               fi
             done
             
             # Run validation for this environment if we have merged files
             if [ $tenant_count -gt 0 ]; then
               echo ""
-              echo "Running conftest validation for $ENV environment..."
-              echo "Validating $(ls ${ENV}-tenant*-combined.yml 2>/dev/null | wc -l) tenant(s)"
-              
-              if conftest test --policy overlays/policies/ --data overlays/validators/ ${ENV}-tenant*-combined.yml; then
-                echo "✅ $ENV environment validation PASSED"
+              echo "=== CONFTEST VALIDATION FOR $ENV ==="
+              merged_files=$(ls ${ENV}-tenant*-combined.yml 2>/dev/null || echo "")
+              if [ -n "$merged_files" ]; then
+                echo "Merged files to validate:"
+                ls -la ${ENV}-tenant*-combined.yml
+                
+                echo ""
+                echo "Checking policy and data paths..."
+                echo "Policy path (from tenants/): ../overlays/policies/"
+                ls -la ../overlays/policies/ || echo "ERROR: Policy directory not found"
+                
+                echo "Data path (from tenants/): ../overlays/validators/"
+                ls -la ../overlays/validators/ || echo "ERROR: Validators directory not found"
+                
+                echo ""
+                echo "Running conftest command..."
+                echo "Command: conftest test --policy ../overlays/policies/ --data ../overlays/validators/ ${ENV}-tenant*-combined.yml"
+                
+                if conftest test --policy ../overlays/policies/ --data ../overlays/validators/ ${ENV}-tenant*-combined.yml; then
+                  echo "SUCCESS: $ENV environment validation PASSED"
+                else
+                  echo "FAILED: $ENV environment validation FAILED"
+                  VALIDATION_FAILED=true
+                fi
               else
-                echo "❌ $ENV environment validation FAILED"
+                echo "ERROR: No merged files found for validation"
                 VALIDATION_FAILED=true
               fi
             else
-              echo "No tenants found in $ENV environment"
+              echo "WARNING: No tenants found in $ENV environment"
             fi
             
             # Clean up merged files
+            echo "Cleaning up merged files..."
             rm -f ${ENV}-tenant*-combined.yml
           done
           
           echo ""
           echo "=================================================="
-          echo "Auth0 Configuration Validation Summary Complete"
+          echo "Auth0 Configuration Validation Summary"
           echo "=================================================="
           
           if [ "$VALIDATION_FAILED" = true ]; then
-            echo "One or more environment validations failed"
+            echo "RESULT: One or more environment validations FAILED"
             echo "Please review the violations above and update your configurations to comply with the standards."
             exit 1
           else
-            echo "All Auth0 configurations comply with enterprise security standards"
+            echo "RESULT: All Auth0 configurations comply with enterprise security standards"
           fi
 
       - name: Skip validation message
