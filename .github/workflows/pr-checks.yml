@@ -214,11 +214,9 @@ jobs:
           VALIDATION_FAILED=false
           
           for ENV in "${ENVIRONMENTS[@]}"; do
-            echo ""
-            echo "=================================================="
-            echo "Processing Environment: $ENV"
-            echo "=================================================="
+            echo "Merging configs for environment: $ENV"
             
+            # Clean up any existing merged files
             rm -f ${ENV}-tenant*-combined.yml
             
             if [ ! -d "$ENV" ]; then
@@ -226,54 +224,48 @@ jobs:
               continue
             fi
             
-            tenant_count=0
+            # Loop through all tenant directories (exactly like your script)
             for tenant_dir in ${ENV}/tenant*/; do
               if [ -d "$tenant_dir" ]; then
                 tenant_name=$(basename "$tenant_dir")
-                echo "Merging configs for $tenant_name..."
+                echo "Processing $tenant_name..."
                 
+                # Check if YAML files exist
                 if ls ${tenant_dir}/*.yml 1> /dev/null 2>&1; then
-                  if yq eval-all '. as $item ireduce ({}; . * $item)' \
+                  # Merge all YAML files for this tenant
+                  yq eval-all '. as $item ireduce ({}; . * $item)' \
                     ${tenant_dir}/*.yml \
-                    > ${ENV}-${tenant_name}-combined.yml; then
-                    echo "Created ${ENV}-${tenant_name}-combined.yml"
-                    ((tenant_count++))
-                  else
-                    echo "Error: Failed to merge YAML files for $tenant_name"
-                    VALIDATION_FAILED=true
-                    continue
-                  fi
+                    > ${ENV}-${tenant_name}-combined.yml
+                  
+                  echo "✓ Created ${ENV}-${tenant_name}-combined.yml"
                 else
-                  echo "Warning: No YAML files found in $tenant_dir"
+                  echo "⚠ No YAML files found in $tenant_dir"
                 fi
               fi
             done
             
-            if [ $tenant_count -gt 0 ]; then
+            # Check if we have any merged files to validate
+            if ls ${ENV}-tenant*-combined.yml 1> /dev/null 2>&1; then
               echo ""
-              echo "Running conftest validation for $ENV environment..."
+              echo "Running conftest validation for $ENV..."
               
-              if conftest test --policy ./overlays/policies/ --data ./overlays/validators/ ${ENV}-tenant*-combined.yml; then
+              # Use the EXACT same command as your script
+              if conftest test --policy overlays/policies/ --data overlays/validators/ ${ENV}-tenant*-combined.yml; then
                 echo "✅ $ENV environment validation PASSED"
               else
                 echo "❌ $ENV environment validation FAILED"
                 VALIDATION_FAILED=true
               fi
             else
-              echo "No tenants found in $ENV environment"
+              echo "No merged files found for $ENV environment"
             fi
             
+            # Clean up
             rm -f ${ENV}-tenant*-combined.yml
           done
           
-          echo ""
-          echo "=================================================="
-          echo "Auth0 Configuration Validation Summary"
-          echo "=================================================="
-          
           if [ "$VALIDATION_FAILED" = true ]; then
             echo "One or more environment validations failed"
-            echo "Please review the violations above and update your configurations."
             exit 1
           else
             echo "All Auth0 configurations comply with enterprise security standards"
