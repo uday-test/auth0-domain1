@@ -1,7 +1,7 @@
 connections:
   database:
     - name: "Username-Password-Authentication"
-      password_policy: "excellent"
+      password_policy: "fair"
       password_complexity_options:
         min_length: 12
         require_uppercase: true
@@ -23,7 +23,7 @@ sessions:
 
 tokens:
   access_token:
-    lifetime_in_seconds: 9000
+    lifetime_in_seconds: 50000
   refresh_token:
     lifetime_in_seconds: 604800
     rotation_enabled: true
