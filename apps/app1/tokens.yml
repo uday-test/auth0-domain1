@@ -5,4 +5,4 @@ jwt_configuration:
 refresh_token:
   rotation_type: "rotating"
   expiration_type: "expiring"
-  token_lifetime: 259200
+  token_lifetime: 259

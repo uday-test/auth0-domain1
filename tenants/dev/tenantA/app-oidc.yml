@@ -9,4 +9,4 @@ oidc:
     - "token"
   security:
     require_https: true
-    enforce_pkce: false
+    enforce_pkce: true
