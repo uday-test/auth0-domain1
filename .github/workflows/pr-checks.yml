@@ -158,10 +158,10 @@ jobs:
           retention-days: 7
 
   # ------------------------------------
-  # 3) AUTH0 CONFIGURATION VALIDATION
+  # 3) TENANT-LEVEL CONFIGURATION VALIDATION
   # ------------------------------------
-  auth0-config-validation:
-    name: Auth0 Config Validation
+  tenant-config-validation:
+    name: Tenant Config Validation
     runs-on: ubuntu-latest
     needs: [setup, path-guard]
     steps:
@@ -183,7 +183,7 @@ jobs:
           conftest --version
           yq --version
 
-      - name: Check for Auth0 config changes
+      - name: Check for tenant config changes
         id: check-changes
         shell: bash
         run: |
@@ -196,15 +196,15 @@ jobs:
           fi
 
           if git diff --name-only "$BASE..$HEAD" | grep -E '^tenants/(dev|qa|prod)/tenant.*\.yml$' > /dev/null; then
-            echo "auth0-changes=true" >> "$GITHUB_OUTPUT"
-            echo "Auth0 configuration changes detected"
+            echo "tenant-changes=true" >> "$GITHUB_OUTPUT"
+            echo "Tenant configuration changes detected"
           else
-            echo "auth0-changes=false" >> "$GITHUB_OUTPUT"
-            echo "No Auth0 configuration changes detected"
+            echo "tenant-changes=false" >> "$GITHUB_OUTPUT"
+            echo "No tenant configuration changes detected"
           fi
 
-      - name: Validate Auth0 configurations
-        if: steps.check-changes.outputs.auth0-changes == 'true'
+      - name: Validate tenant configurations
+        if: steps.check-changes.outputs.tenant-changes == 'true'
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -224,7 +224,7 @@ jobs:
               continue
             fi
             
-            # Loop through all tenant directories (exactly like your script)
+            # Loop through all tenant directories
             for tenant_dir in ${ENV}/tenant*/; do
               if [ -d "$tenant_dir" ]; then
                 tenant_name=$(basename "$tenant_dir")
@@ -249,7 +249,6 @@ jobs:
               echo ""
               echo "Running conftest validation for $ENV..."
               
-              # Use the EXACT same command as your script
               if conftest test --policy overlays/policies/ --data overlays/validators/ ${ENV}-tenant*-combined.yml; then
                 echo "✅ $ENV environment validation PASSED"
               else
@@ -268,21 +267,21 @@ jobs:
             echo "One or more environment validations failed"
             exit 1
           else
-            echo "All Auth0 configurations comply with enterprise security standards"
+            echo "All tenant configurations comply with enterprise security standards"
           fi
 
       - name: Skip validation message
-        if: steps.check-changes.outputs.auth0-changes == 'false'
+        if: steps.check-changes.outputs.tenant-changes == 'false'
         shell: bash
         run: |
-          echo "No Auth0 configuration changes detected in this PR."
-          echo "Skipping Auth0 configuration validation."
+          echo "No tenant configuration changes detected in this PR."
+          echo "Skipping tenant configuration validation."
 
   # ------------------------------------
-  # 4) AUTH0 POLICIES (existing validation)
+  # 4) APP-LEVEL CONFIGURATION VALIDATION
   # ------------------------------------
-  auth0-policies:
-    name: Auth0 Policies (Conftest)
+  app-level-validation:
+    name: App-Level Config Validation
     runs-on: ubuntu-latest
     needs: [setup, path-guard]
     steps:
@@ -302,23 +301,13 @@ jobs:
           sudo mv conftest /usr/local/bin/
           sudo mv yq /usr/local/bin/
           conftest --version
+          yq --version
 
-      - name: Conftest verify (Auth0 policy unit tests if present)
+      - name: Check for app config changes
+        id: check-changes
         shell: bash
         run: |
           set -Eeuo pipefail
-          DIR="base/policies"
-          if [ -d "$DIR" ] && compgen -G "${DIR}/*_test.rego" > /dev/null; then
-            conftest verify "$DIR"
-          else
-            echo "No *_test.rego in $DIR; skipping verify."
-          fi
-
-      - name: Conftest test on changed Auth0 YAMLs (uses --namespace auth0.policy)
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-
           BASE="${{ github.event.pull_request.base.sha || '' }}"
           HEAD="${{ github.event.pull_request.head.sha || github.sha }}"
           if [ -z "$BASE" ]; then
@@ -326,21 +315,112 @@ jobs:
             BASE="$(git rev-parse origin/main)"
           fi
 
-          mapfile -t FILES < <(git diff --name-only "$BASE..$HEAD" \
-            | grep -E '^apps/[^/]+/(auth0/)?[^/]+\.(ya?ml)$' || true)
-
-          if [ "${#FILES[@]}" -eq 0 ]; then
-            echo "No Auth0 YAML changes; skipping conftest test."
-            exit 0
+          if git diff --name-only "$BASE..$HEAD" | grep -E '^apps/[^/]+/(tokens|security|orgs)\.yml$' > /dev/null; then
+            echo "app-changes=true" >> "$GITHUB_OUTPUT"
+            echo "App configuration changes detected"
+          else
+            echo "app-changes=false" >> "$GITHUB_OUTPUT"
+            echo "No app configuration changes detected"
           fi
 
-          echo "Testing files:"
-          printf ' - %s\n' "${FILES[@]}"
+      - name: Validate app configurations
+        if: steps.check-changes.outputs.app-changes == 'true'
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          
+          VALIDATION_FAILED=false
+          TOTAL_APPS=0
+          PASSED_APPS=0
+          FAILED_APPS=0
+          
+          echo "=========================================="
+          echo "App Configuration Validation"
+          echo "=========================================="
+          echo ""
+          
+          # Loop through all app directories
+          for app_dir in apps/*/; do
+            if [ -d "$app_dir" ]; then
+              app_name=$(basename "$app_dir")
+              TOTAL_APPS=$((TOTAL_APPS + 1))
+              
+              echo "Processing: $app_name"
+              echo "----------------------------------------"
+              
+              # Determine app type
+              APP_TYPE="spa"
+              if [[ "$app_name" == *"app2"* ]] || [[ "$app_name" == *"web"* ]]; then
+                APP_TYPE="regular_web"
+              elif [[ "$app_name" == *"mobile"* ]] || [[ "$app_name" == *"native"* ]]; then
+                APP_TYPE="native"
+              fi
+              
+              echo "App type: $APP_TYPE"
+              
+              # Check if required files exist
+              if [ ! -f "${app_dir}/tokens.yml" ] || [ ! -f "${app_dir}/security.yml" ] || [ ! -f "${app_dir}/orgs.yml" ]; then
+                echo "⚠️  Missing required YAML files in ${app_dir}"
+                echo "Required files: tokens.yml, security.yml, orgs.yml"
+                FAILED_APPS=$((FAILED_APPS + 1))
+                VALIDATION_FAILED=true
+                continue
+              fi
+              
+              # Create combined config
+              OUTPUT_FILE="${app_dir}/${app_name}-combined.yml"
+              
+              cat > ${OUTPUT_FILE} <<EOF
+          app_type: "${APP_TYPE}"
+          tokens:
+          $(yq eval '.' ${app_dir}/tokens.yml | sed 's/^/  /')
+          security:
+          $(yq eval '.' ${app_dir}/security.yml | sed 's/^/  /')
+          orgs:
+          $(yq eval '.' ${app_dir}/orgs.yml | sed 's/^/  /')
+          EOF
+              
+              echo "✓ Created ${OUTPUT_FILE}"
+              
+              # Run validation
+              echo "Validating ${app_name}..."
+              if conftest test \
+                  --policy base/policies/ \
+                  --data base/tenants-common \
+                  ${OUTPUT_FILE}; then
+                PASSED_APPS=$((PASSED_APPS + 1))
+                echo "✅ PASS: $app_name"
+              else
+                FAILED_APPS=$((FAILED_APPS + 1))
+                echo "❌ FAIL: $app_name"
+                VALIDATION_FAILED=true
+              fi
+              
+              echo ""
+            fi
+          done
+          
+          echo "=========================================="
+          echo "Validation Summary"
+          echo "=========================================="
+          echo "Total Apps:   $TOTAL_APPS"
+          echo "Passed:       $PASSED_APPS"
+          echo "Failed:       $FAILED_APPS"
+          echo "=========================================="
+          
+          if [ "$VALIDATION_FAILED" = true ]; then
+            echo "One or more app validations failed"
+            exit 1
+          else
+            echo "All app configurations comply with standards"
+          fi
 
-          conftest test \
-            --namespace auth0.policy \
-            --policy base/policies \
-            "${FILES[@]}"
+      - name: Skip validation message
+        if: steps.check-changes.outputs.app-changes == 'false'
+        shell: bash
+        run: |
+          echo "No app configuration changes detected in this PR."
+          echo "Skipping app configuration validation."
 
   # ------------------------------------
   # 5) SHARED-SEC POLICIES (Conftest validation)

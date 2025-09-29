@@ -1,6 +1,0 @@
-prompts:
-  universal-login:
-    identifier_first: true
-branding:
-  colors:
-    primary: "#0055AA"

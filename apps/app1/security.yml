@@ -1,0 +1,22 @@
+grant_types:
+  - "authorization_code"
+  - "refresh_token"
+
+response_types:
+  - "code"
+
+token_endpoint_auth_method: "none"
+
+cross_origin_auth: true
+oidc_conformant: true
+sso_disabled: false
+
+allowed_web_origins:
+  - "https://portal.mycompany.com"
+  - "https://staging-portal.mycompany.com"
+  - "http://localhost:3000"
+
+allowed_origins:
+  - "https://portal.mycompany.com"
+  - "https://staging-portal.mycompany.com"
+  - "http://localhost:3000"

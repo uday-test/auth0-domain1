@@ -1,3 +1,24 @@
-organizations:
-  - name: "{env}-{tenant}-org"
-    display_name: "{env} {tenant} Organization"
+organization_standards:
+  usage_policies:
+    spa:
+      organization_usage: "allow"  # Optional for customer apps
+      organization_require_behavior: "no_prompt"  # Don't interrupt user flow
+      reasoning: "Keep customer experience simple"
+    
+    regular_web:
+      organization_usage: "allow"  # Can be "require" for B2B apps
+      organization_require_behavior: "pre_login_prompt"  # Show org selector
+      reasoning: "Admin users need org context"
+    
+    native:
+      organization_usage: "deny"   # Keep mobile simple
+      reasoning: "Mobile apps should have simplified auth flow"
+
+  b2b_overrides:
+    enterprise_apps:
+      organization_usage: "require"
+      organization_require_behavior: "pre_login_prompt"
+    
+    customer_apps:
+      organization_usage: "allow"
+      organization_require_behavior: "no_prompt"

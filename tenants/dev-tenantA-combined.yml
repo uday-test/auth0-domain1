@@ -1,0 +1,41 @@
+oidc:
+  issuer: "https://dev-tenanta.auth0.com/"
+  supported_grant_types:
+    - "authorization_code"
+    - "implicit"
+    - "refresh_token"
+  supported_response_types:
+    - "code"
+    - "token"
+  security:
+    require_https: true
+    enforce_pkce: false
+connections:
+  database:
+    - name: "Username-Password-Authentication"
+      password_policy: "fair"
+      password_complexity_options:
+        min_length: 6
+      brute_force_protection: false
+guardian:
+  enabled: false
+sessions:
+  lifetime_in_hours: 8
+tokens:
+  access_token:
+    lifetime_in_seconds: 3600
+  refresh_token:
+    lifetime_in_seconds: 86400
+security:
+  allowed_origins:
+    - "http://localhost:3000"
+branding:
+  logo_url: "https://cdn.example.com/dev/logo.png"
+  colors:
+    primary: "#28a745"
+email_templates:
+  verify_email:
+    from: "dev-noreply@example.com"
+    subject: "[DEV] Verify Email"
+universal_login:
+  new_universal_login_experience_enabled: true

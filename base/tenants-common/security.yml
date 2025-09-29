@@ -1,0 +1,48 @@
+security_standards:
+  authentication:
+    token_endpoint_auth_method:
+      spa: "none"  # REQUIRED - SPAs are public clients
+      regular_web: "client_secret_post"  # REQUIRED - web apps are confidential
+      native: "none"  # REQUIRED - mobile apps are public clients
+    
+    oidc_conformant: true  # REQUIRED for all apps
+    
+    cross_origin_auth:
+      spa: true   # REQUIRED for silent authentication
+      regular_web: false  # REQUIRED
+      native: false  # REQUIRED
+
+  grant_types:
+    spa:
+      required:
+        - "authorization_code"
+        - "refresh_token"
+      forbidden:
+        - "implicit"
+        - "client_credentials"
+    regular_web:
+      required:
+        - "authorization_code"
+        - "refresh_token"
+      optional:
+        - "client_credentials"  # Only if server-to-server calls needed
+    native:
+      required:
+        - "authorization_code" 
+        - "refresh_token"
+      forbidden:
+        - "implicit"
+        - "client_credentials"
+
+  response_types:
+    spa: ["code"]  # REQUIRED
+    regular_web: ["code"]  # REQUIRED
+    forbidden: ["token", "id_token"]  # Implicit flow deprecated
+
+  cors:
+    allowed_origins:
+      spa: "required"  # Must match web origins
+      regular_web: "optional"
+    allowed_web_origins:
+      spa: "required"  # For silent auth
+      regular_web: "optional"

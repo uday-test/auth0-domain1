@@ -1,0 +1,51 @@
+tokens_standards:
+  access_token:
+    spa:
+      lifetime_in_seconds:
+        min: 1800      # 30 minutes
+        max: 7200      # 2 hours
+        recommended: 3600  # 1 hour
+    regular_web:
+      lifetime_in_seconds:
+        min: 900       # 15 minutes
+        max: 3600      # 1 hour
+        recommended: 1800  # 30 minutes
+    native:
+      lifetime_in_seconds:
+        min: 3600      # 1 hour
+        max: 14400     # 4 hours
+        recommended: 7200  # 2 hours
+  
+  refresh_token:
+    spa:
+      lifetime_in_seconds:
+        min: 86400     # 1 day
+        max: 604800    # 7 days
+        recommended: 259200  # 3 days
+      rotation_type: "rotating"  # REQUIRED
+      expiration_type: "expiring"  # REQUIRED
+    regular_web:
+      lifetime_in_seconds:
+        min: 259200    # 3 days
+        max: 2592000   # 30 days
+        recommended: 604800  # 7 days
+      rotation_type: "rotating"  # REQUIRED
+      expiration_type: "expiring"  # REQUIRED
+    native:
+      lifetime_in_seconds:
+        min: 604800    # 7 days
+        max: 7776000   # 90 days
+        recommended: 2592000  # 30 days
+      rotation_type: "rotating"  # REQUIRED
+      expiration_type: "expiring"  # REQUIRED
+
+  jwt_configuration:
+    alg: "RS256"  # REQUIRED - never use HS256
+    
+  environment_overrides:
+    development:
+      access_token:
+        lifetime_in_seconds: 86400  # Longer for dev convenience
+    staging:
+      refresh_token:
+        lifetime_in_seconds: 86400  # Shorter for testing

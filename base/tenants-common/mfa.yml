@@ -1,5 +1,0 @@
-guardianMfaPolicy:
-  enabled: true
-  factors:
-    - name: "otp"
-      enabled: true
