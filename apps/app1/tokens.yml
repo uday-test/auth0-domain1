@@ -5,4 +5,4 @@ jwt_configuration:
 refresh_token:
   rotation_type: "rotating"
   expiration_type: "expiring"
-  token_lifetime: 259200  # Within limits (3 days)
+  token_lifetime: 864  # Within limits (3 days)
