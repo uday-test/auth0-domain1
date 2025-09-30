@@ -20,6 +20,12 @@ jobs:
     name: Terraform Plan
     runs-on: ubuntu-latest
     
+    # Set Auth0 provider environment variables at job level
+    env:
+      AUTH0_DOMAIN: ${{ secrets.DEV_AUTH0_DOMAIN }}
+      AUTH0_CLIENT_ID: ${{ secrets.DEV_AUTH0_CLIENT_ID }}
+      AUTH0_CLIENT_SECRET: ${{ secrets.DEV_AUTH0_CLIENT_SECRET }}
+    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -37,26 +43,14 @@ jobs:
       
       - name: Terraform Init
         working-directory: ./base/terraform
-        env:
-          TF_VAR_auth0_domain: ${{ secrets.DEV_AUTH0_DOMAIN }}
-          TF_VAR_auth0_client_id: ${{ secrets.DEV_AUTH0_CLIENT_ID }}
-          TF_VAR_auth0_client_secret: ${{ secrets.DEV_AUTH0_CLIENT_SECRET }}
         run: terraform init
       
       - name: Terraform Validate
         working-directory: ./base/terraform
-        env:
-          TF_VAR_auth0_domain: ${{ secrets.DEV_AUTH0_DOMAIN }}
-          TF_VAR_auth0_client_id: ${{ secrets.DEV_AUTH0_CLIENT_ID }}
-          TF_VAR_auth0_client_secret: ${{ secrets.DEV_AUTH0_CLIENT_SECRET }}
         run: terraform validate
       
       - name: Terraform Plan
         working-directory: ./base/terraform
-        env:
-          TF_VAR_auth0_domain: ${{ secrets.DEV_AUTH0_DOMAIN }}
-          TF_VAR_auth0_client_id: ${{ secrets.DEV_AUTH0_CLIENT_ID }}
-          TF_VAR_auth0_client_secret: ${{ secrets.DEV_AUTH0_CLIENT_SECRET }}
         run: |
           terraform plan -no-color > plan_output.txt 2>&1
           EXIT_CODE=$?
