@@ -60,8 +60,15 @@ output "client_name" {
   description = "Auth0 Client Name"
 }
 
+output "app_type" {
+  value       = auth0_client.sample_app.app_type
+  description = "Auth0 Application Type"
+}
+
+# Note: SPAs don't have client secrets
+# Only output client_secret for non-SPA apps
 output "client_secret" {
-  value       = auth0_client.sample_app.client_secret
-  description = "Auth0 Client Secret"
+  value       = auth0_client.sample_app.app_type == "spa" ? "N/A - SPA clients don't have secrets" : auth0_client.sample_app.client_secret
+  description = "Auth0 Client Secret (only for non-SPA clients)"
   sensitive   = true
 }
