@@ -26,8 +26,9 @@ resource "auth0_client" "sample_app" {
   
   callbacks           = local.config.client.callbacks
   allowed_logout_urls = local.config.client.allowed_logout_urls
-  allowed_origins     = local.config.client.allowed_origins
-  allowed_web_origins = local.config.client.allowed_web_origins
+  # Remove 'allowed_origins' - not supported
+  # Remove 'allowed_web_origins' - not supported
+  web_origins         = local.config.client.allowed_web_origins
   
   grant_types                = local.config.client.grant_types
   token_endpoint_auth_method = local.config.client.token_endpoint_auth_method
