@@ -1,7 +1,7 @@
 # config.yml - Sample Auth0 Client Configuration
 
 client:
-  name: "Sample App"
+  name: "Sample App-test-pr"
   app_type: "spa"
   description: "Sample application deployed via Terraform"
   
