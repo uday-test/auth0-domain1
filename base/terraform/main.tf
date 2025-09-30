@@ -13,7 +13,7 @@ provider "auth0" {
   client_secret = var.auth0_client_secret
 }
 
-# Load config.yml from base folder (same directory as terraform folder)
+# Load config.yml from base folder
 locals {
   config = yamldecode(file("${path.module}/../config.yml"))
 }
@@ -24,24 +24,24 @@ resource "auth0_client" "sample_app" {
   description = local.config.client.description
   app_type    = local.config.client.app_type
   
+  # URLs
   callbacks           = local.config.client.callbacks
   allowed_logout_urls = local.config.client.allowed_logout_urls
-  # Remove 'allowed_origins' - not supported
-  # Remove 'allowed_web_origins' - not supported
   web_origins         = local.config.client.allowed_web_origins
   
-  grant_types                = local.config.client.grant_types
-  token_endpoint_auth_method = local.config.client.token_endpoint_auth_method
+  # Grant types
+  grant_types = local.config.client.grant_types
   
-  cross_origin_auth = local.config.client.cross_origin_auth
-  oidc_conformant   = local.config.client.oidc_conformant
-  sso_disabled      = local.config.client.sso_disabled
+  # OIDC settings
+  oidc_conformant = local.config.client.oidc_conformant
   
+  # JWT configuration
   jwt_configuration {
     lifetime_in_seconds = local.config.client.jwt_configuration.lifetime_in_seconds
     alg                 = local.config.client.jwt_configuration.alg
   }
   
+  # Refresh token configuration
   refresh_token {
     rotation_type   = local.config.client.refresh_token.rotation_type
     expiration_type = local.config.client.refresh_token.expiration_type
@@ -49,7 +49,7 @@ resource "auth0_client" "sample_app" {
   }
 }
 
-# Output the created client details
+# Outputs
 output "client_id" {
   value       = auth0_client.sample_app.client_id
   description = "Auth0 Client ID"
