@@ -88,7 +88,7 @@ resource "auth0_guardian" "mfa" {
 }
 
 # ===========================================
-# APPLICATION-LEVEL RESOURCES
+# APPLICATION-LEVEL RESOURCESs
 # ===========================================
 
 resource "auth0_client" "sample_app" {
