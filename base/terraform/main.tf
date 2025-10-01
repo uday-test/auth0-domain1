@@ -12,18 +12,14 @@ provider "auth0" {
 }
 
 locals {
-  # Load baseline security config (tenant-level)
   baseline_security = yamldecode(file("${path.module}/../baseline-security.yml"))
-  
-  # Load application config
-  config = yamldecode(file("${path.module}/../config.yml"))
+  config            = yamldecode(file("${path.module}/../config.yml"))
 }
 
 # ===========================================
-# TENANT-LEVEL RESOURCES (from baseline)
+# TENANT-LEVEL RESOURCES
 # ===========================================
 
-# Branding
 resource "auth0_branding" "tenant" {
   logo_url = local.baseline_security.branding.logo_url
   
@@ -37,27 +33,25 @@ resource "auth0_branding" "tenant" {
   }
 }
 
-# Universal Login
 resource "auth0_prompt" "login" {
   universal_login_experience = local.baseline_security.universal_login.experience
   identifier_first           = local.baseline_security.universal_login.identifier_first
 }
 
-# Database Connection with Password Policy
 resource "auth0_connection" "database" {
   name     = local.baseline_security.connections.database.name
   strategy = "auth0"
   
   options {
-    password_policy = local.baseline_security.password_policy.strength
+    password_policy = local.baseline_security.identity_access.password_policy.strength
     
     password_complexity_options {
-      min_length = local.baseline_security.password_policy.min_length
+      min_length = local.baseline_security.identity_access.password_policy.min_length
     }
     
     password_history {
-      enable = local.baseline_security.password_policy.history.enabled
-      size   = local.baseline_security.password_policy.history.size
+      enable = local.baseline_security.identity_access.password_policy.history.enabled
+      size   = local.baseline_security.identity_access.password_policy.history.size
     }
     
     password_no_personal_info {
@@ -66,11 +60,13 @@ resource "auth0_connection" "database" {
     
     brute_force_protection = true
   }
-  
+}
+
+resource "auth0_connection_clients" "database_clients" {
+  connection_id   = auth0_connection.database.id
   enabled_clients = [auth0_client.sample_app.id]
 }
 
-# MFA Configuration
 resource "auth0_guardian" "mfa" {
   policy = local.baseline_security.mfa.policy
   
@@ -92,7 +88,7 @@ resource "auth0_guardian" "mfa" {
 }
 
 # ===========================================
-# APPLICATION-LEVEL RESOURCES (from config.yml)
+# APPLICATION-LEVEL RESOURCES
 # ===========================================
 
 resource "auth0_client" "sample_app" {
