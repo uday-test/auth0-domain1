@@ -39,5 +39,5 @@ universal_login:
 
 connections:
   database:
-    name: "Username-Password-Authentication"
+    name: "CUstom-Username-Password-Authentication"
     enabled: true
