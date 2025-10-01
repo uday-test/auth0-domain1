@@ -1,0 +1,30 @@
+# baseline/security.yml
+identity_access:
+  password_policy:
+    min_length: 12
+    require_uppercase: true
+    require_lowercase: true
+    require_numbers: true
+    require_special: true
+    history: 5          # remember last 5 passwords
+    max_age_days: 90    # force rotation every 90 days
+
+mfa:
+  factors:
+    - name: sms
+      enabled: false   # disallow SMS for baseline
+    - name: push
+      enabled: true
+    - name: totp
+      enabled: true
+  policy: required      # MFA mandatory for all users
+
+session:
+  idle_timeout_minutes: 30
+  absolute_timeout_hours: 8
+
+branding:
+  universal_login:
+    default_theme: corporate
+    logo_url: https://ciam.example.com/logo.png
+    primary_color: "#0057b8"

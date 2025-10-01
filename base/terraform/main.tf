@@ -11,35 +11,110 @@ provider "auth0" {
   # Reads from AUTH0_DOMAIN, AUTH0_CLIENT_ID, AUTH0_CLIENT_SECRET env vars
 }
 
-# Load config.yml from base folder
 locals {
+  # Load baseline security config (tenant-level)
+  baseline_security = yamldecode(file("${path.module}/../baseline-security.yml"))
+  
+  # Load application config
   config = yamldecode(file("${path.module}/../config.yml"))
 }
 
-# Create Auth0 Client from config.yml
+# ===========================================
+# TENANT-LEVEL RESOURCES (from baseline)
+# ===========================================
+
+# Branding
+resource "auth0_branding" "tenant" {
+  logo_url = local.baseline_security.branding.logo_url
+  
+  colors {
+    primary         = local.baseline_security.branding.primary_color
+    page_background = local.baseline_security.branding.page_background
+  }
+  
+  font {
+    url = local.baseline_security.branding.font_url
+  }
+}
+
+# Universal Login
+resource "auth0_prompt" "login" {
+  universal_login_experience = local.baseline_security.universal_login.experience
+  identifier_first           = local.baseline_security.universal_login.identifier_first
+}
+
+# Database Connection with Password Policy
+resource "auth0_connection" "database" {
+  name     = local.baseline_security.connections.database.name
+  strategy = "auth0"
+  
+  options {
+    password_policy = local.baseline_security.password_policy.strength
+    
+    password_complexity_options {
+      min_length = local.baseline_security.password_policy.min_length
+    }
+    
+    password_history {
+      enable = local.baseline_security.password_policy.history.enabled
+      size   = local.baseline_security.password_policy.history.size
+    }
+    
+    password_no_personal_info {
+      enable = true
+    }
+    
+    brute_force_protection = true
+  }
+  
+  enabled_clients = [auth0_client.sample_app.id]
+}
+
+# MFA Configuration
+resource "auth0_guardian" "mfa" {
+  policy = local.baseline_security.mfa.policy
+  
+  otp = local.baseline_security.mfa.factors.otp
+  
+  phone {
+    enabled       = local.baseline_security.mfa.factors.sms
+    provider      = "auth0"
+    message_types = ["sms"]
+  }
+  
+  webauthn_roaming {
+    enabled = local.baseline_security.mfa.factors.webauthn
+  }
+  
+  webauthn_platform {
+    enabled = local.baseline_security.mfa.factors.webauthn
+  }
+}
+
+# ===========================================
+# APPLICATION-LEVEL RESOURCES (from config.yml)
+# ===========================================
+
 resource "auth0_client" "sample_app" {
   name        = local.config.client.name
   description = local.config.client.description
   app_type    = local.config.client.app_type
   
-  # URLs
   callbacks           = local.config.client.callbacks
   allowed_logout_urls = local.config.client.allowed_logout_urls
   web_origins         = local.config.client.allowed_web_origins
   
-  # Grant types
   grant_types = local.config.client.grant_types
   
-  # OIDC settings
-  oidc_conformant = local.config.client.oidc_conformant
+  cross_origin_auth = local.config.client.cross_origin_auth
+  oidc_conformant   = local.config.client.oidc_conformant
+  sso_disabled      = local.config.client.sso_disabled
   
-  # JWT configuration
   jwt_configuration {
     lifetime_in_seconds = local.config.client.jwt_configuration.lifetime_in_seconds
     alg                 = local.config.client.jwt_configuration.alg
   }
   
-  # Refresh token configuration
   refresh_token {
     rotation_type   = local.config.client.refresh_token.rotation_type
     expiration_type = local.config.client.refresh_token.expiration_type
@@ -47,7 +122,10 @@ resource "auth0_client" "sample_app" {
   }
 }
 
-# Outputs
+# ===========================================
+# OUTPUTS
+# ===========================================
+
 output "client_id" {
   value       = auth0_client.sample_app.client_id
   description = "Auth0 Client ID"
@@ -63,4 +141,26 @@ output "app_type" {
   description = "Auth0 Application Type"
 }
 
-# SPAs don't have client_secret attribute at all - just don't output it
+output "tenant_branding" {
+  value = {
+    logo_url = auth0_branding.tenant.logo_url
+    colors   = auth0_branding.tenant.colors
+  }
+  description = "Tenant branding configuration"
+}
+
+output "database_connection" {
+  value = {
+    name = auth0_connection.database.name
+    id   = auth0_connection.database.id
+  }
+  description = "Database connection details"
+}
+
+output "mfa_enabled" {
+  value = {
+    policy = auth0_guardian.mfa.policy
+    otp    = auth0_guardian.mfa.otp
+  }
+  description = "MFA configuration status"
+}
