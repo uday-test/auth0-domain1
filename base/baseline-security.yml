@@ -14,7 +14,7 @@ identity_access:
     max_age_days: 90
 
 mfa:
-  policy: "all-applicaations"
+  policy: "all-applications"
   factors:
     sms: false
     push: true
