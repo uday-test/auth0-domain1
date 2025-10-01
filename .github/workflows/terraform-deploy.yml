@@ -32,6 +32,7 @@ jobs:
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.6.0
+          terraform_wrapper: false
       
       - name: Determine environment
         id: env
@@ -65,23 +66,45 @@ jobs:
       
       - name: Terraform Init
         working-directory: ./base/terraform
+        env:
+          AUTH0_DOMAIN: ${{ steps.secrets.outputs.domain }}
+          AUTH0_CLIENT_ID: ${{ steps.secrets.outputs.client_id }}
+          AUTH0_CLIENT_SECRET: ${{ steps.secrets.outputs.client_secret }}
+          TF_VAR_auth0_domain: ${{ steps.secrets.outputs.domain }}
+          TF_VAR_auth0_client_id: ${{ steps.secrets.outputs.client_id }}
+          TF_VAR_auth0_client_secret: ${{ steps.secrets.outputs.client_secret }}
         run: terraform init
       
       - name: Terraform Apply
         working-directory: ./base/terraform
         env:
+          AUTH0_DOMAIN: ${{ steps.secrets.outputs.domain }}
+          AUTH0_CLIENT_ID: ${{ steps.secrets.outputs.client_id }}
+          AUTH0_CLIENT_SECRET: ${{ steps.secrets.outputs.client_secret }}
           TF_VAR_auth0_domain: ${{ steps.secrets.outputs.domain }}
           TF_VAR_auth0_client_id: ${{ steps.secrets.outputs.client_id }}
           TF_VAR_auth0_client_secret: ${{ steps.secrets.outputs.client_secret }}
         run: terraform apply -auto-approve
       
-      - name: Output Results
+      - name: Extract Outputs
+        id: outputs
         working-directory: ./base/terraform
         env:
-          TF_VAR_auth0_domain: ${{ steps.secrets.outputs.domain }}
-          TF_VAR_auth0_client_id: ${{ steps.secrets.outputs.client_id }}
-          TF_VAR_auth0_client_secret: ${{ steps.secrets.outputs.client_secret }}
+          AUTH0_DOMAIN: ${{ steps.secrets.outputs.domain }}
+          AUTH0_CLIENT_ID: ${{ steps.secrets.outputs.client_id }}
+          AUTH0_CLIENT_SECRET: ${{ steps.secrets.outputs.client_secret }}
+        run: |
+          CLIENT_ID=$(terraform output -raw client_id)
+          CLIENT_NAME=$(terraform output -raw client_name)
+          APP_TYPE=$(terraform output -raw app_type)
+          
+          echo "client_id=$CLIENT_ID" >> $GITHUB_OUTPUT
+          echo "client_name=$CLIENT_NAME" >> $GITHUB_OUTPUT
+          echo "app_type=$APP_TYPE" >> $GITHUB_OUTPUT
+      
+      - name: Output Results
         run: |
           echo "Environment: ${{ steps.env.outputs.environment }}"
-          echo "Client ID: $(terraform output -raw client_id)"
-          echo "Client Name: $(terraform output -raw client_name)"
+          echo "Client ID: ${{ steps.outputs.outputs.client_id }}"
+          echo "Client Name: ${{ steps.outputs.outputs.client_name }}"
+          echo "App Type: ${{ steps.outputs.outputs.app_type }}"
