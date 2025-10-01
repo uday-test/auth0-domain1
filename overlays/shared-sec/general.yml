@@ -1,4 +1,0 @@
-tenant:
-  allowed_logout_urls:
-    - "https://enterprise-secure-logout.com"
-    - "https://{base_url}/logout"
