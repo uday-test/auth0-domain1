@@ -20,12 +20,6 @@ jobs:
     name: Terraform Plan
     runs-on: ubuntu-latest
     
-    # Set Auth0 provider environment variables at job level
-    env:
-      AUTH0_DOMAIN: ${{ secrets.DEV_AUTH0_DOMAIN }}
-      AUTH0_CLIENT_ID: ${{ secrets.DEV_AUTH0_CLIENT_ID }}
-      AUTH0_CLIENT_SECRET: ${{ secrets.DEV_AUTH0_CLIENT_SECRET }}
-    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -36,6 +30,33 @@ jobs:
           terraform_version: 1.6.0
           terraform_wrapper: false
       
+      - name: Set environment
+        id: env
+        run: |
+          # For PR checks, always use dev environment
+          echo "environment=dev" >> $GITHUB_OUTPUT
+      
+      - name: Get secrets for environment
+        id: secrets
+        run: |
+          case "${{ steps.env.outputs.environment }}" in
+            dev)
+              echo "domain=${{ secrets.DEV_AUTH0_DOMAIN }}" >> $GITHUB_OUTPUT
+              echo "client_id=${{ secrets.DEV_AUTH0_CLIENT_ID }}" >> $GITHUB_OUTPUT
+              echo "client_secret=${{ secrets.DEV_AUTH0_CLIENT_SECRET }}" >> $GITHUB_OUTPUT
+              ;;
+            qa)
+              echo "domain=${{ secrets.QA_AUTH0_DOMAIN }}" >> $GITHUB_OUTPUT
+              echo "client_id=${{ secrets.QA_AUTH0_CLIENT_ID }}" >> $GITHUB_OUTPUT
+              echo "client_secret=${{ secrets.QA_AUTH0_CLIENT_SECRET }}" >> $GITHUB_OUTPUT
+              ;;
+            prod)
+              echo "domain=${{ secrets.PROD_AUTH0_DOMAIN }}" >> $GITHUB_OUTPUT
+              echo "client_id=${{ secrets.PROD_AUTH0_CLIENT_ID }}" >> $GITHUB_OUTPUT
+              echo "client_secret=${{ secrets.PROD_AUTH0_CLIENT_SECRET }}" >> $GITHUB_OUTPUT
+              ;;
+          esac
+      
       - name: Terraform Format
         working-directory: ./base/terraform
         run: terraform fmt
@@ -43,30 +64,50 @@ jobs:
       
       - name: Terraform Init
         working-directory: ./base/terraform
+        env:
+          TF_VAR_auth0_domain: ${{ steps.secrets.outputs.domain }}
+          TF_VAR_auth0_client_id: ${{ steps.secrets.outputs.client_id }}
+          TF_VAR_auth0_client_secret: ${{ steps.secrets.outputs.client_secret }}
         run: terraform init
       
       - name: Terraform Validate
         working-directory: ./base/terraform
+        env:
+          TF_VAR_auth0_domain: ${{ steps.secrets.outputs.domain }}
+          TF_VAR_auth0_client_id: ${{ steps.secrets.outputs.client_id }}
+          TF_VAR_auth0_client_secret: ${{ steps.secrets.outputs.client_secret }}
         run: terraform validate
       
       - name: Terraform Plan
         working-directory: ./base/terraform
-        run: |
-          terraform plan -no-color > plan_output.txt 2>&1
-          EXIT_CODE=$?
-          cat plan_output.txt
-          exit $EXIT_CODE
+        env:
+          TF_VAR_auth0_domain: ${{ steps.secrets.outputs.domain }}
+          TF_VAR_auth0_client_id: ${{ steps.secrets.outputs.client_id }}
+          TF_VAR_auth0_client_secret: ${{ steps.secrets.outputs.client_secret }}
+        run: terraform plan -no-color -out=tfplan
         continue-on-error: true
         id: plan
       
+      - name: Capture Plan Output
+        if: always()
+        working-directory: ./base/terraform
+        run: |
+          terraform show -no-color tfplan > plan_output.txt 2>&1 || echo "Plan failed" > plan_output.txt
+        continue-on-error: true
+      
       - name: Comment PR with Plan
         uses: actions/github-script@v7
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && always()
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const fs = require('fs');
-            const planOutput = fs.readFileSync('./base/terraform/plan_output.txt', 'utf8');
+            let planOutput = 'Plan file not found';
+            try {
+              planOutput = fs.readFileSync('./base/terraform/plan_output.txt', 'utf8');
+            } catch (error) {
+              planOutput = 'Error reading plan output';
+            }
             
             const output = `#### Terraform Plan 📖
             
@@ -78,7 +119,7 @@ jobs:
             
             </details>
             
-            *Pusher: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
+            *Pusher: @${{ github.actor }}, Action: \`${{ github.event_name }}\`, Environment: dev*`;
             
             github.rest.issues.createComment({
               issue_number: context.issue.number,
