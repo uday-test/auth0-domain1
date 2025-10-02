@@ -8,7 +8,9 @@ terraform {
 }
 
 provider "auth0" {
-  # Reads from AUTH0_DOMAIN, AUTH0_CLIENT_ID, AUTH0_CLIENT_SECRET env vars
+  domain        = var.auth0_domain
+  client_id     = var.auth0_client_id
+  client_secret = var.auth0_client_secret
 }
 
 locals {

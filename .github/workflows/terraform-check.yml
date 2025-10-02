@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - 'base/config.yml'
+      - 'base/baseline-security.yml'
       - 'base/terraform/**'
       - 'apps/**'
       - 'tenants/**'
@@ -41,73 +42,100 @@ jobs:
           echo "client_id=${{ secrets.DEV_AUTH0_CLIENT_ID }}" >> $GITHUB_OUTPUT
           echo "client_secret=${{ secrets.DEV_AUTH0_CLIENT_SECRET }}" >> $GITHUB_OUTPUT
       
-      - name: Terraform Format
+      - name: Terraform Format Check
+        id: fmt
         working-directory: ./base/terraform
-        run: terraform fmt
+        run: terraform fmt -check -recursive
         continue-on-error: true
       
       - name: Terraform Init
+        id: init
         working-directory: ./base/terraform
         env:
-          AUTH0_DOMAIN: ${{ steps.secrets.outputs.domain }}
-          AUTH0_CLIENT_ID: ${{ steps.secrets.outputs.client_id }}
-          AUTH0_CLIENT_SECRET: ${{ steps.secrets.outputs.client_secret }}
           TF_VAR_auth0_domain: ${{ steps.secrets.outputs.domain }}
           TF_VAR_auth0_client_id: ${{ steps.secrets.outputs.client_id }}
           TF_VAR_auth0_client_secret: ${{ steps.secrets.outputs.client_secret }}
         run: terraform init
       
       - name: Terraform Validate
+        id: validate
         working-directory: ./base/terraform
-        env:
-          AUTH0_DOMAIN: ${{ steps.secrets.outputs.domain }}
-          AUTH0_CLIENT_ID: ${{ steps.secrets.outputs.client_id }}
-          AUTH0_CLIENT_SECRET: ${{ steps.secrets.outputs.client_secret }}
-          TF_VAR_auth0_domain: ${{ steps.secrets.outputs.domain }}
-          TF_VAR_auth0_client_id: ${{ steps.secrets.outputs.client_id }}
-          TF_VAR_auth0_client_secret: ${{ steps.secrets.outputs.client_secret }}
-        run: terraform validate
+        run: terraform validate -no-color
       
       - name: Terraform Plan
+        id: plan
         working-directory: ./base/terraform
         env:
-          AUTH0_DOMAIN: ${{ steps.secrets.outputs.domain }}
-          AUTH0_CLIENT_ID: ${{ steps.secrets.outputs.client_id }}
-          AUTH0_CLIENT_SECRET: ${{ steps.secrets.outputs.client_secret }}
           TF_VAR_auth0_domain: ${{ steps.secrets.outputs.domain }}
           TF_VAR_auth0_client_id: ${{ steps.secrets.outputs.client_id }}
           TF_VAR_auth0_client_secret: ${{ steps.secrets.outputs.client_secret }}
-        run: terraform plan -no-color -out=tfplan
+        run: |
+          terraform plan -no-color -out=tfplan -detailed-exitcode || exit_code=$?
+          echo "exit_code=$exit_code" >> $GITHUB_OUTPUT
+          if [ $exit_code -eq 1 ]; then
+            exit 1
+          fi
+          exit 0
         continue-on-error: true
       
       - name: Capture Plan Output
-        if: always()
+        id: show
+        if: always() && steps.plan.outcome != 'skipped'
         working-directory: ./base/terraform
-        env:
-          AUTH0_DOMAIN: ${{ steps.secrets.outputs.domain }}
-          AUTH0_CLIENT_ID: ${{ steps.secrets.outputs.client_id }}
-          AUTH0_CLIENT_SECRET: ${{ steps.secrets.outputs.client_secret }}
         run: |
-          terraform show -no-color tfplan > plan_output.txt 2>&1 || echo "Plan failed or no changes" > plan_output.txt
+          if [ -f tfplan ]; then
+            terraform show -no-color tfplan > plan_output.txt 2>&1
+          else
+            echo "Plan file not generated - see errors above" > plan_output.txt
+          fi
         continue-on-error: true
       
       - name: Comment PR with Plan
         uses: actions/github-script@v7
-        if: always()
+        if: always() && github.event_name == 'pull_request'
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const fs = require('fs');
-            let planOutput = 'Plan file not found';
+            
+            // Read plan output
+            let planOutput = 'Plan output not available';
             try {
               planOutput = fs.readFileSync('./base/terraform/plan_output.txt', 'utf8');
+              // Truncate if too long (GitHub has comment size limits)
+              if (planOutput.length > 65000) {
+                planOutput = planOutput.substring(0, 65000) + '\n\n... (truncated)';
+              }
             } catch (error) {
-              planOutput = 'Error reading plan output: ' + error.message;
+              planOutput = `Error reading plan output: ${error.message}`;
             }
             
-            const output = `#### Terraform Plan 📖
+            // Build status summary
+            const fmtStatus = '${{ steps.fmt.outcome }}' === 'success' ? '✅' : '❌';
+            const initStatus = '${{ steps.init.outcome }}' === 'success' ? '✅' : '❌';
+            const validateStatus = '${{ steps.validate.outcome }}' === 'success' ? '✅' : '❌';
+            const planStatus = '${{ steps.plan.outcome }}' === 'success' ? '✅' : '❌';
+            const planExitCode = '${{ steps.plan.outputs.exit_code }}';
             
-            <details><summary>Show Plan</summary>
+            let planMessage = '';
+            if (planExitCode === '0') {
+              planMessage = '✅ No changes detected';
+            } else if (planExitCode === '2') {
+              planMessage = '📝 Changes detected';
+            } else {
+              planMessage = '❌ Plan failed';
+            }
+            
+            const output = `#### Terraform Plan Results 📖
+            
+            | Step | Status |
+            |------|--------|
+            | Format | ${fmtStatus} |
+            | Init | ${initStatus} |
+            | Validate | ${validateStatus} |
+            | Plan | ${planStatus} ${planMessage} |
+            
+            <details><summary>Show Plan Output</summary>
             
             \`\`\`terraform
             ${planOutput}
@@ -115,11 +143,39 @@ jobs:
             
             </details>
             
-            *Environment: dev, Pusher: @${{ github.actor }}*`;
+            *Environment: \`dev\` | Triggered by: @${{ github.actor }}*`;
             
-            github.rest.issues.createComment({
+            // Find existing comment
+            const comments = await github.rest.issues.listComments({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: output
             });
+            
+            const botComment = comments.data.find(comment => 
+              comment.user.type === 'Bot' && 
+              comment.body.includes('Terraform Plan Results')
+            );
+            
+            // Update or create comment
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: output
+              });
+            } else {
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: output
+              });
+            }
+      
+      - name: Fail workflow if plan failed
+        if: steps.plan.outputs.exit_code == '1'
+        run: |
+          echo "Terraform plan failed with errors"
+          exit 1
