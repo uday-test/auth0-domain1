@@ -19,7 +19,7 @@ locals {
 }
 
 # ===========================================
-# TENANT-LEVEL RESOURCES
+# TENANT-LEVEL RESOURCESs
 # ===========================================
 
 resource "auth0_branding" "tenant" {
