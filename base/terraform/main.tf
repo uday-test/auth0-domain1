@@ -13,131 +13,87 @@ provider "auth0" {
   client_secret = var.auth0_client_secret
 }
 
+# Load all configuration files
 locals {
-  baseline_security = yamldecode(file("${path.module}/../baseline-security.yml"))
-  config            = yamldecode(file("${path.module}/../config.yml"))
+  app_oidc      = yamldecode(file("${path.module}/../configs/app-oidc.yml"))
+  auth_settings = yamldecode(file("${path.module}/../configs/auth-settings.yml"))
+  risk_settings = yamldecode(file("${path.module}/../configs/risk-settings.yml"))
+  ux_settings   = yamldecode(file("${path.module}/../configs/ux-settings.yml"))
 }
 
 # ===========================================
 # TENANT-LEVEL RESOURCES
 # ===========================================
 
+# Branding
 resource "auth0_branding" "tenant" {
-  logo_url = local.baseline_security.branding.logo_url
+  logo_url = local.ux_settings.branding.logo_url
   
   colors {
-    primary         = local.baseline_security.branding.primary_color
-    page_background = local.baseline_security.branding.page_background
+    primary         = local.ux_settings.branding.primary_color
+    page_background = local.ux_settings.branding.page_background
   }
   
   font {
-    url = local.baseline_security.branding.font_url
+    url = local.ux_settings.branding.font_url
   }
 }
 
+# Universal Login
 resource "auth0_prompt" "login" {
-  universal_login_experience = local.baseline_security.universal_login.experience
-  identifier_first           = local.baseline_security.universal_login.identifier_first
+  universal_login_experience = local.auth_settings.universal_login.experience
+  identifier_first           = local.auth_settings.universal_login.identifier_first
 }
 
+# Database Connection
 resource "auth0_connection" "database" {
-  name     = local.baseline_security.connections.database.name
+  name     = local.auth_settings.connections.database.name
   strategy = "auth0"
   
   options {
-    password_policy = local.baseline_security.identity_access.password_policy.strength
+    password_policy = local.auth_settings.identity_access.password_policy.strength
     
     password_complexity_options {
-      min_length = local.baseline_security.identity_access.password_policy.min_length
+      min_length = local.auth_settings.identity_access.password_policy.min_length
     }
     
     password_history {
-      enable = local.baseline_security.identity_access.password_policy.history.enabled
-      size   = local.baseline_security.identity_access.password_policy.history.size
+      enable = local.auth_settings.identity_access.password_policy.history.enabled
+      size   = local.auth_settings.identity_access.password_policy.history.size
     }
     
     password_no_personal_info {
       enable = true
     }
     
-    brute_force_protection = true
+    brute_force_protection = local.risk_settings.brute_force_protection.enabled
   }
 }
 
-resource "auth0_connection_clients" "database_clients" {
-  connection_id   = auth0_connection.database.id
-  enabled_clients = [auth0_client.sample_app.id]
-}
-
+# Multi-Factor Authentication
 resource "auth0_guardian" "mfa" {
-  policy = local.baseline_security.mfa.policy
+  policy = local.auth_settings.mfa.policy
   
-  otp = local.baseline_security.mfa.factors.otp
+  otp = local.auth_settings.mfa.factors.otp
   
   phone {
-    enabled       = local.baseline_security.mfa.factors.sms
+    enabled       = local.auth_settings.mfa.factors.sms
     provider      = "auth0"
     message_types = ["sms"]
   }
   
   webauthn_roaming {
-    enabled = local.baseline_security.mfa.factors.webauthn
+    enabled = local.auth_settings.mfa.factors.webauthn
   }
   
   webauthn_platform {
-    enabled = local.baseline_security.mfa.factors.webauthn
-  }
-}
-
-# ===========================================
-# APPLICATION-LEVEL RESOURCES
-# ===========================================
-
-resource "auth0_client" "sample_app" {
-  name        = local.config.client.name
-  description = local.config.client.description
-  app_type    = local.config.client.app_type
-  
-  callbacks           = local.config.client.callbacks
-  allowed_logout_urls = local.config.client.allowed_logout_urls
-  web_origins         = local.config.client.allowed_web_origins
-  
-  grant_types = local.config.client.grant_types
-  
-  cross_origin_auth = local.config.client.cross_origin_auth
-  oidc_conformant   = local.config.client.oidc_conformant
-  sso_disabled      = local.config.client.sso_disabled
-  
-  jwt_configuration {
-    lifetime_in_seconds = local.config.client.jwt_configuration.lifetime_in_seconds
-    alg                 = local.config.client.jwt_configuration.alg
-  }
-  
-  refresh_token {
-    rotation_type   = local.config.client.refresh_token.rotation_type
-    expiration_type = local.config.client.refresh_token.expiration_type
-    token_lifetime  = local.config.client.refresh_token.token_lifetime
+    enabled = local.auth_settings.mfa.factors.webauthn
   }
 }
 
 # ===========================================
 # OUTPUTS
 # ===========================================
-
-output "client_id" {
-  value       = auth0_client.sample_app.client_id
-  description = "Auth0 Client ID"
-}
-
-output "client_name" {
-  value       = auth0_client.sample_app.name
-  description = "Auth0 Client Name"
-}
-
-output "app_type" {
-  value       = auth0_client.sample_app.app_type
-  description = "Auth0 Application Type"
-}
 
 output "tenant_branding" {
   value = {
@@ -155,10 +111,19 @@ output "database_connection" {
   description = "Database connection details"
 }
 
-output "mfa_enabled" {
+output "mfa_configuration" {
   value = {
     policy = auth0_guardian.mfa.policy
     otp    = auth0_guardian.mfa.otp
   }
   description = "MFA configuration status"
+}
+
+output "oidc_configuration" {
+  value = {
+    issuer                  = local.app_oidc.oidc.issuer
+    supported_grant_types   = local.app_oidc.oidc.supported_grant_types
+    security_enforce_pkce   = local.app_oidc.oidc.security.enforce_pkce
+  }
+  description = "Tenant OIDC configuration"
 }
