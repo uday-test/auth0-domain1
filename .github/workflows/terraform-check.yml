@@ -31,16 +31,28 @@ jobs:
           terraform_version: 1.6.0
           terraform_wrapper: false
       
-      - name: Set environment
-        id: env
-        run: echo "environment=dev" >> $GITHUB_OUTPUT
-      
-      - name: Get secrets for environment
-        id: secrets
+      - name: Debug - Check secrets availability
         run: |
-          echo "domain=${{ secrets.DEV_AUTH0_DOMAIN }}" >> $GITHUB_OUTPUT
-          echo "client_id=${{ secrets.DEV_AUTH0_CLIENT_ID }}" >> $GITHUB_OUTPUT
-          echo "client_secret=${{ secrets.DEV_AUTH0_CLIENT_SECRET }}" >> $GITHUB_OUTPUT
+          echo "Checking if secrets are available..."
+          if [ -z "${{ secrets.DEV_AUTH0_DOMAIN }}" ]; then
+            echo "ERROR: DEV_AUTH0_DOMAIN secret is not set or empty"
+          else
+            echo "✓ DEV_AUTH0_DOMAIN is set (length: ${#SECRET_DOMAIN})"
+          fi
+          
+          if [ -z "${{ secrets.DEV_AUTH0_CLIENT_ID }}" ]; then
+            echo "ERROR: DEV_AUTH0_CLIENT_ID secret is not set or empty"
+          else
+            echo "✓ DEV_AUTH0_CLIENT_ID is set"
+          fi
+          
+          if [ -z "${{ secrets.DEV_AUTH0_CLIENT_SECRET }}" ]; then
+            echo "ERROR: DEV_AUTH0_CLIENT_SECRET secret is not set or empty"
+          else
+            echo "✓ DEV_AUTH0_CLIENT_SECRET is set"
+          fi
+        env:
+          SECRET_DOMAIN: ${{ secrets.DEV_AUTH0_DOMAIN }}
       
       - name: Terraform Format Check
         id: fmt
@@ -52,9 +64,9 @@ jobs:
         id: init
         working-directory: ./base/terraform
         env:
-          TF_VAR_auth0_domain: ${{ steps.secrets.outputs.domain }}
-          TF_VAR_auth0_client_id: ${{ steps.secrets.outputs.client_id }}
-          TF_VAR_auth0_client_secret: ${{ steps.secrets.outputs.client_secret }}
+          TF_VAR_auth0_domain: ${{ secrets.DEV_AUTH0_DOMAIN }}
+          TF_VAR_auth0_client_id: ${{ secrets.DEV_AUTH0_CLIENT_ID }}
+          TF_VAR_auth0_client_secret: ${{ secrets.DEV_AUTH0_CLIENT_SECRET }}
         run: terraform init
       
       - name: Terraform Validate
@@ -62,13 +74,38 @@ jobs:
         working-directory: ./base/terraform
         run: terraform validate -no-color
       
+      - name: Debug - Verify environment variables before plan
+        run: |
+          echo "Checking TF_VAR variables are set..."
+          if [ -n "$TF_VAR_auth0_domain" ]; then
+            echo "✓ TF_VAR_auth0_domain is set"
+          else
+            echo "ERROR: TF_VAR_auth0_domain is NOT set"
+          fi
+          
+          if [ -n "$TF_VAR_auth0_client_id" ]; then
+            echo "✓ TF_VAR_auth0_client_id is set"
+          else
+            echo "ERROR: TF_VAR_auth0_client_id is NOT set"
+          fi
+          
+          if [ -n "$TF_VAR_auth0_client_secret" ]; then
+            echo "✓ TF_VAR_auth0_client_secret is set"
+          else
+            echo "ERROR: TF_VAR_auth0_client_secret is NOT set"
+          fi
+        env:
+          TF_VAR_auth0_domain: ${{ secrets.DEV_AUTH0_DOMAIN }}
+          TF_VAR_auth0_client_id: ${{ secrets.DEV_AUTH0_CLIENT_ID }}
+          TF_VAR_auth0_client_secret: ${{ secrets.DEV_AUTH0_CLIENT_SECRET }}
+      
       - name: Terraform Plan
         id: plan
         working-directory: ./base/terraform
         env:
-          TF_VAR_auth0_domain: ${{ steps.secrets.outputs.domain }}
-          TF_VAR_auth0_client_id: ${{ steps.secrets.outputs.client_id }}
-          TF_VAR_auth0_client_secret: ${{ steps.secrets.outputs.client_secret }}
+          TF_VAR_auth0_domain: ${{ secrets.DEV_AUTH0_DOMAIN }}
+          TF_VAR_auth0_client_id: ${{ secrets.DEV_AUTH0_CLIENT_ID }}
+          TF_VAR_auth0_client_secret: ${{ secrets.DEV_AUTH0_CLIENT_SECRET }}
         run: |
           terraform plan -no-color -out=tfplan -detailed-exitcode || exit_code=$?
           echo "exit_code=$exit_code" >> $GITHUB_OUTPUT
