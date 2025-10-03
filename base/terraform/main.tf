@@ -21,7 +21,7 @@ locals {
   ux_settings   = yamldecode(file("${path.module}/../base-line/configs/ux-settings.yml"))
 }
 # ===========================================
-# TENANT-LEVEL RESOURCES
+# TENANT-LEVEL RESOURCESd
 # ===========================================
 
 # Branding
