@@ -15,12 +15,11 @@ provider "auth0" {
 
 # Load all configuration files
 locals {
-  app_oidc      = yamldecode(file("${path.module}/../configs/app-oidc.yml"))
-  auth_settings = yamldecode(file("${path.module}/../configs/auth-settings.yml"))
-  risk_settings = yamldecode(file("${path.module}/../configs/risk-settings.yml"))
-  ux_settings   = yamldecode(file("${path.module}/../configs/ux-settings.yml"))
+  app_oidc      = yamldecode(file("${path.module}/../base-line/configs/app-oidc.yml"))
+  auth_settings = yamldecode(file("${path.module}/../base-line/configs/auth-settings.yml"))
+  risk_settings = yamldecode(file("${path.module}/../base-line/configs/risk-settings.yml"))
+  ux_settings   = yamldecode(file("${path.module}/../base-line/configs/ux-settings.yml"))
 }
-
 # ===========================================
 # TENANT-LEVEL RESOURCES
 # ===========================================
