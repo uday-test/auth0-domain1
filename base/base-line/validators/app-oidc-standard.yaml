@@ -1,0 +1,32 @@
+# Standard OIDC Configuration
+
+oidc:
+  required: true
+  issuer:
+    required: true
+    must_start_with: "https://"
+    must_contain: ".auth0.com/"
+  
+  supported_grant_types:
+    required: true
+    must_include:
+      - "authorization_code"
+  
+  supported_response_types:
+    required: true
+    must_include:
+      - "code"
+  
+  supported_response_modes:
+    required: true
+  
+  security:
+    required: true
+    require_https:
+      required: true
+      must_equal: true
+    enforce_pkce:
+      required: true
+      must_equal: true
+    require_pushed_authorization_requests:
+      required: true

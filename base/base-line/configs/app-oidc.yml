@@ -1,0 +1,20 @@
+# OIDC Configuration (Tenant-level)
+
+oidc:
+  issuer: "https://tenant.auth0.com/"
+  supported_grant_types:
+    - "authorization_code"
+    - "refresh_token"
+    - "client_credentials"
+  supported_response_types:
+    - "code"
+    - "token"
+    - "id_token"
+  supported_response_modes:
+    - "query"
+    - "fragment"
+    - "form_post"
+  security:
+    require_https: true
+    enforce_pkce: true
+    require_pushed_authorization_requests: false

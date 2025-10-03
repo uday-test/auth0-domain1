@@ -158,7 +158,111 @@ jobs:
           retention-days: 7
 
   # ------------------------------------
-  # 3) TENANT-LEVEL CONFIGURATION VALIDATION
+  # 3) BASELINE CONFIGURATION VALIDATION
+  # ------------------------------------
+  baseline-config-validation:
+    name: Baseline Config Validation
+    runs-on: ubuntu-latest
+    needs: [setup, path-guard]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+
+      - name: Download binaries
+        uses: actions/download-artifact@v4
+        with:
+          name: conftest-and-yq-binaries
+          path: .
+          
+      - name: Setup tools
+        run: |
+          chmod +x conftest yq
+          sudo mv conftest /usr/local/bin/
+          sudo mv yq /usr/local/bin/
+          conftest --version
+          yq --version
+
+      - name: Check for baseline config changes
+        id: check-changes
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          BASE="${{ github.event.pull_request.base.sha || '' }}"
+          HEAD="${{ github.event.pull_request.head.sha || github.sha }}"
+          if [ -z "$BASE" ]; then
+            git fetch origin main
+            BASE="$(git rev-parse origin/main)"
+          fi
+
+          if git diff --name-only "$BASE..$HEAD" | grep -E '^base/base-line/(configs|validators)/.*\.ya?ml$' > /dev/null; then
+            echo "baseline-changes=true" >> "$GITHUB_OUTPUT"
+            echo "Baseline configuration changes detected"
+          else
+            echo "baseline-changes=false" >> "$GITHUB_OUTPUT"
+            echo "No baseline configuration changes detected"
+          fi
+
+      - name: Merge and validate baseline configs
+        if: steps.check-changes.outputs.baseline-changes == 'true'
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          
+          echo "=========================================="
+          echo "Baseline Configuration Validation"
+          echo "=========================================="
+          echo ""
+          
+          mkdir -p temp
+          
+          echo "Merging baseline configs..."
+          yq eval-all '. as $item ireduce ({}; . * $item)' \
+            base/base-line/configs/app-oidc.yml \
+            base/base-line/configs/auth-settings.yml \
+            base/base-line/configs/risk-settings.yml \
+            base/base-line/configs/ux-settings.yml > temp/merged-config.yaml
+          
+          echo "Merging baseline standards..."
+          yq eval-all '. as $item ireduce ({}; . * $item)' \
+            base/base-line/validators/app-oidc-standard.yaml \
+            base/base-line/validators/auth-settings-standard.yaml \
+            base/base-line/validators/risk-settings-standard.yaml \
+            base/base-line/validators/ux-settings-standard.yaml > temp/merged-standard.yaml
+          
+          echo "Creating combined input file..."
+          cat > temp/baseline-input.yaml <<EOF
+          config:
+          $(cat temp/merged-config.yaml | sed 's/^/  /')
+          standard:
+          $(cat temp/merged-standard.yaml | sed 's/^/  /')
+          EOF
+          
+          echo "Running Conftest validation..."
+          if conftest test temp/baseline-input.yaml \
+            --policy base/base-line/policies/ \
+            --no-color; then
+            echo ""
+            echo "=========================================="
+            echo "✅ Baseline validation PASSED"
+            echo "=========================================="
+          else
+            echo ""
+            echo "=========================================="
+            echo "❌ Baseline validation FAILED"
+            echo "=========================================="
+            exit 1
+          fi
+
+      - name: Skip validation message
+        if: steps.check-changes.outputs.baseline-changes == 'false'
+        shell: bash
+        run: |
+          echo "No baseline configuration changes detected in this PR."
+          echo "Skipping baseline configuration validation."
+
+  # ------------------------------------
+  # 4) TENANT-LEVEL CONFIGURATION VALIDATION
   # ------------------------------------
   tenant-config-validation:
     name: Tenant Config Validation
@@ -278,7 +382,7 @@ jobs:
           echo "Skipping tenant configuration validation."
 
   # ------------------------------------
-  # 4) APP-LEVEL CONFIGURATION VALIDATION
+  # 5) APP-LEVEL CONFIGURATION VALIDATION
   # ------------------------------------
   app-level-validation:
     name: App-Level Config Validation
@@ -423,12 +527,12 @@ jobs:
           echo "Skipping app configuration validation."
 
   # ------------------------------------
-  # 5) SHARED-SEC POLICIES (Conftest validation)
+  # 6) SHARED-SEC POLICIES (Conftest validation)
   # ------------------------------------
   shared-sec-policies:
     name: Shared-Sec Policies (Conftest)
     runs-on: ubuntu-latest
-    needs: [setup, path-guard, tenant-config-validation, app-level-validation]
+    needs: [setup, path-guard, baseline-config-validation, tenant-config-validation, app-level-validation]
     if: always()
     steps:
       - name: Checkout

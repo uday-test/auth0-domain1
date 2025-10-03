@@ -1,0 +1,35 @@
+# Authentication & Authorization Settings
+
+identity_access:
+  password_policy:
+    strength: "good"
+    min_length: 12
+    require_uppercase: true
+    require_lowercase: true
+    require_numbers: true
+    require_special: true
+    history:
+      enabled: true
+      size: 5
+    max_age_days: 90
+
+mfa:
+  policy: "all-applications"
+  factors:
+    sms: false
+    push: true
+    otp: true
+    webauthn: true
+
+session:
+  idle_timeout_minutes: 30
+  absolute_timeout_hours: 8
+
+universal_login:
+  experience: "new"
+  identifier_first: true
+
+connections:
+  database:
+    name: "Custom-Username-Password-Authentication"
+    enabled: true

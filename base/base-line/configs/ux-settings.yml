@@ -1,0 +1,7 @@
+branding:
+  logo_url: "https://ciam.example.com/logo.png"
+  primary_color: "#0057b8"
+  page_background: "#ffffff"
+  font_url: "https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap"
+  universal_login:
+    default_theme: "corporate"

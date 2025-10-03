@@ -1,0 +1,75 @@
+# Standard Authentication & Authorization Configuration
+
+identity_access:
+  required: true
+  password_policy:
+    required: true
+    strength:
+      required: true
+    min_length:
+      required: true
+      min_value: 12
+    require_uppercase:
+      required: true
+      must_equal: true
+    require_lowercase:
+      required: true
+      must_equal: true
+    require_numbers:
+      required: true
+      must_equal: true
+    require_special:
+      required: true
+      must_equal: true
+    history:
+      required: true
+      enabled:
+        required: true
+        must_equal: true
+      size:
+        required: true
+        min_value: 5
+
+mfa:
+  required: true
+  policy:
+    required: true
+    must_not_equal: "never"
+  factors:
+    required: true
+    sms:
+      required: true
+      must_equal: false
+    push:
+      required: true
+      must_equal: true    # Add if you want to enforce it
+    otp:
+      required: true
+      must_equal: true    # Add if you want to enforce it
+    webauthn:
+      required: true
+      must_equal: true    # Add if you want to enforce it
+session:
+  required: true
+  idle_timeout_minutes:
+    required: true
+    max_value: 60
+  absolute_timeout_hours:
+    required: true
+
+universal_login:
+  required: true
+  experience:
+    required: true
+    must_equal: "new"
+  identifier_first:
+    required: true
+
+connections:
+  required: true
+  database:
+    required: true
+    name:
+      required: true
+    enabled:
+      required: true

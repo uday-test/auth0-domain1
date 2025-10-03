@@ -1,0 +1,10 @@
+# Security & Risk Management Settings
+
+brute_force_protection:
+  enabled: true
+
+bot_detection:
+  enabled: true
+
+breached_password_detection:
+  enabled: true

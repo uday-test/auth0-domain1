@@ -1,0 +1,20 @@
+# Standard UX & Branding Configuration
+
+branding:
+  required: true
+  logo_url:
+    required: true
+    must_start_with: "https://"
+  primary_color:
+    required: true
+    must_match_pattern: "^#[0-9A-Fa-f]{6}$"
+  page_background:
+    required: true
+    must_match_pattern: "^#[0-9A-Fa-f]{6}$"
+  font_url:
+    required: true
+    must_start_with: "https://"
+  universal_login:
+    required: true
+    default_theme:
+      required: true

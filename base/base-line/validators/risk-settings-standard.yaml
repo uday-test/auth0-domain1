@@ -1,0 +1,19 @@
+# Standard Risk & Security Management Requirements
+
+brute_force_protection:
+  required: true
+  enabled:
+    required: true
+    must_equal: true
+
+bot_detection:
+  required: true
+  enabled:
+    required: true
+    must_equal: true
+
+breached_password_detection:
+  required: true
+  enabled:
+    required: true
+    must_equal: true
