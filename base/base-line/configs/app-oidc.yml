@@ -1,4 +1,4 @@
-# OIDC Configuration (Tenant-level )
+# OIDC Configuration (Tenant-level)
 
 oidc:
   issuer: "https://tenant.auth0.com/"
