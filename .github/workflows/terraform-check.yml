@@ -5,11 +5,7 @@ on:
     branches:
       - main
     paths:
-      - 'base/config.yml'
-      - 'base/baseline-security.yml'
-      - 'base/terraform/**'
-      - 'apps/**'
-      - 'tenants/**'
+      - 'base/base-line/configs/**'
 
 permissions:
   contents: read

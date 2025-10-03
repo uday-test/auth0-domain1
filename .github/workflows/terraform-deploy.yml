@@ -5,9 +5,7 @@ on:
     branches:
       - main
     paths:
-      - 'base/config.yml'
-      - 'base/baseline-security.yml'
-      - 'base/terraform/**'
+      - 'base/base-line/configs/**'
   workflow_dispatch:
     inputs:
       environment:
