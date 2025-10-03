@@ -6,16 +6,92 @@ on:
       - main
     paths:
       - 'base/base-line/configs/**'
+      - 'base/base-line/validators/**'
+      - 'base/base-line/policies/**'
+      - 'base/terraform/**'
+      - 'apps/**'
+      - 'tenants/**'
 
 permissions:
   contents: read
   pull-requests: write
   issues: write
+  checks: read
 
 jobs:
+  # First job: Wait for prerequisite checks to complete successfully
+  wait-for-pr-checks:
+    name: Wait for PR Checks to Pass
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for Path Guard and Baseline Validation
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const maxAttempts = 60; // 10 minutes total
+            const delayMs = 10000;  // Check every 10 seconds
+            
+            const requiredChecks = [
+              'Path Guard (Conftest)',
+              'Baseline Config Validation'
+            ];
+            
+            console.log('Waiting for prerequisite checks to complete...');
+            console.log(`Required checks: ${requiredChecks.join(', ')}`);
+            
+            for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+              console.log(`\nAttempt ${attempt}/${maxAttempts}`);
+              
+              const { data: checks } = await github.rest.checks.listForRef({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                ref: context.payload.pull_request.head.sha,
+              });
+              
+              let allComplete = true;
+              let anyFailed = false;
+              
+              for (const checkName of requiredChecks) {
+                const check = checks.check_runs.find(c => c.name === checkName);
+                
+                if (!check) {
+                  console.log(`  ⏳ ${checkName}: Not started yet`);
+                  allComplete = false;
+                } else if (check.status !== 'completed') {
+                  console.log(`  ⏳ ${checkName}: ${check.status}`);
+                  allComplete = false;
+                } else if (check.conclusion === 'success' || check.conclusion === 'skipped') {
+                  console.log(`  ✅ ${checkName}: ${check.conclusion}`);
+                } else {
+                  console.log(`  ❌ ${checkName}: ${check.conclusion}`);
+                  anyFailed = true;
+                }
+              }
+              
+              if (anyFailed) {
+                core.setFailed('One or more prerequisite checks failed. Terraform check will not run.');
+                return;
+              }
+              
+              if (allComplete) {
+                console.log('\n✅ All prerequisite checks passed!');
+                console.log('Proceeding with Terraform plan...');
+                return;
+              }
+              
+              if (attempt < maxAttempts) {
+                console.log(`Waiting ${delayMs/1000} seconds before next check...`);
+                await new Promise(resolve => setTimeout(resolve, delayMs));
+              }
+            }
+            
+            core.setFailed('Timeout: Prerequisite checks did not complete within 10 minutes');
+
   terraform-plan:
     name: Terraform Plan
     runs-on: ubuntu-latest
+    needs: [wait-for-pr-checks]
     environment: dev
     
     steps:
@@ -34,7 +110,7 @@ jobs:
           if [ -z "${{ secrets.DEV_AUTH0_DOMAIN }}" ]; then
             echo "ERROR: DEV_AUTH0_DOMAIN secret is not set or empty"
           else
-            echo "✓ DEV_AUTH0_DOMAIN is set (length: ${#SECRET_DOMAIN})"
+            echo "✓ DEV_AUTH0_DOMAIN is set"
           fi
           
           if [ -z "${{ secrets.DEV_AUTH0_CLIENT_ID }}" ]; then
@@ -48,8 +124,6 @@ jobs:
           else
             echo "✓ DEV_AUTH0_CLIENT_SECRET is set"
           fi
-        env:
-          SECRET_DOMAIN: ${{ secrets.DEV_AUTH0_DOMAIN }}
       
       - name: Terraform Format Check
         id: fmt
@@ -70,31 +144,6 @@ jobs:
         id: validate
         working-directory: ./base/terraform
         run: terraform validate -no-color
-      
-      - name: Debug - Verify environment variables before plan
-        run: |
-          echo "Checking TF_VAR variables are set..."
-          if [ -n "$TF_VAR_auth0_domain" ]; then
-            echo "✓ TF_VAR_auth0_domain is set"
-          else
-            echo "ERROR: TF_VAR_auth0_domain is NOT set"
-          fi
-          
-          if [ -n "$TF_VAR_auth0_client_id" ]; then
-            echo "✓ TF_VAR_auth0_client_id is set"
-          else
-            echo "ERROR: TF_VAR_auth0_client_id is NOT set"
-          fi
-          
-          if [ -n "$TF_VAR_auth0_client_secret" ]; then
-            echo "✓ TF_VAR_auth0_client_secret is set"
-          else
-            echo "ERROR: TF_VAR_auth0_client_secret is NOT set"
-          fi
-        env:
-          TF_VAR_auth0_domain: ${{ secrets.DEV_AUTH0_DOMAIN }}
-          TF_VAR_auth0_client_id: ${{ secrets.DEV_AUTH0_CLIENT_ID }}
-          TF_VAR_auth0_client_secret: ${{ secrets.DEV_AUTH0_CLIENT_SECRET }}
       
       - name: Terraform Plan
         id: plan
@@ -132,11 +181,9 @@ jobs:
           script: |
             const fs = require('fs');
             
-            // Read plan output
             let planOutput = 'Plan output not available';
             try {
               planOutput = fs.readFileSync('./base/terraform/plan_output.txt', 'utf8');
-              // Truncate if too long (GitHub has comment size limits)
               if (planOutput.length > 65000) {
                 planOutput = planOutput.substring(0, 65000) + '\n\n... (truncated)';
               }
@@ -144,7 +191,6 @@ jobs:
               planOutput = `Error reading plan output: ${error.message}`;
             }
             
-            // Build status summary
             const fmtStatus = '${{ steps.fmt.outcome }}' === 'success' ? '✅' : '❌';
             const initStatus = '${{ steps.init.outcome }}' === 'success' ? '✅' : '❌';
             const validateStatus = '${{ steps.validate.outcome }}' === 'success' ? '✅' : '❌';
@@ -161,6 +207,8 @@ jobs:
             }
             
             const output = `#### Terraform Plan Results 📖
+            
+            **Prerequisites:** ✅ Path Guard Passed | ✅ Baseline Validation Passed
             
             | Step | Status |
             |------|--------|
@@ -179,7 +227,6 @@ jobs:
             
             *Environment: \`dev\` | Triggered by: @${{ github.actor }}*`;
             
-            // Find existing comment
             const comments = await github.rest.issues.listComments({
               issue_number: context.issue.number,
               owner: context.repo.owner,
@@ -191,7 +238,6 @@ jobs:
               comment.body.includes('Terraform Plan Results')
             );
             
-            // Update or create comment
             if (botComment) {
               await github.rest.issues.updateComment({
                 owner: context.repo.owner,
