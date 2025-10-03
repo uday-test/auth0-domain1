@@ -7,25 +7,21 @@ on:
     paths:
       - 'base/base-line/configs/**'
   workflow_dispatch:
-    inputs:
-      environment:
-        description: 'Environment to deploy to'
-        required: true
-        type: choice
-        options:
-          - dev
-          - qa
-          - prod
+
+permissions:
+  contents: write
 
 jobs:
   deploy:
-    name: Deploy to Auth0
+    name: Deploy to Auth0 (Dev)
     runs-on: ubuntu-latest
-    environment: ${{ github.event.inputs.environment || 'dev' }}
+    environment: dev
     
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
       
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
@@ -33,61 +29,48 @@ jobs:
           terraform_version: 1.6.0
           terraform_wrapper: false
       
-      - name: Determine environment
-        id: env
-        run: |
-          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-            echo "environment=${{ github.event.inputs.environment }}" >> $GITHUB_OUTPUT
-          else
-            echo "environment=dev" >> $GITHUB_OUTPUT
-          fi
-      
-      - name: Get secrets for environment
-        id: secrets
-        run: |
-          case "${{ steps.env.outputs.environment }}" in
-            dev)
-              echo "domain=${{ secrets.DEV_AUTH0_DOMAIN }}" >> $GITHUB_OUTPUT
-              echo "client_id=${{ secrets.DEV_AUTH0_CLIENT_ID }}" >> $GITHUB_OUTPUT
-              echo "client_secret=${{ secrets.DEV_AUTH0_CLIENT_SECRET }}" >> $GITHUB_OUTPUT
-              ;;
-            qa)
-              echo "domain=${{ secrets.QA_AUTH0_DOMAIN }}" >> $GITHUB_OUTPUT
-              echo "client_id=${{ secrets.QA_AUTH0_CLIENT_ID }}" >> $GITHUB_OUTPUT
-              echo "client_secret=${{ secrets.QA_AUTH0_CLIENT_SECRET }}" >> $GITHUB_OUTPUT
-              ;;
-            prod)
-              echo "domain=${{ secrets.PROD_AUTH0_DOMAIN }}" >> $GITHUB_OUTPUT
-              echo "client_id=${{ secrets.PROD_AUTH0_CLIENT_ID }}" >> $GITHUB_OUTPUT
-              echo "client_secret=${{ secrets.PROD_AUTH0_CLIENT_SECRET }}" >> $GITHUB_OUTPUT
-              ;;
-          esac
-      
       - name: Verify secrets are set
         run: |
-          if [ -z "${{ steps.secrets.outputs.domain }}" ] || \
-             [ -z "${{ steps.secrets.outputs.client_id }}" ] || \
-             [ -z "${{ steps.secrets.outputs.client_secret }}" ]; then
-            echo "Error: Required secrets not configured for ${{ steps.env.outputs.environment }} environment"
+          if [ -z "${{ secrets.DEV_AUTH0_DOMAIN }}" ] || \
+             [ -z "${{ secrets.DEV_AUTH0_CLIENT_ID }}" ] || \
+             [ -z "${{ secrets.DEV_AUTH0_CLIENT_SECRET }}" ]; then
+            echo "Error: Required secrets not configured for dev environment"
             exit 1
+          fi
+      
+      # Pull existing state file if it exists
+      - name: Pull existing Terraform state
+        working-directory: ./base/terraform
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Pull latest to get any state updates
+          git pull origin main || true
+          
+          if [ -f "terraform.tfstate.dev" ]; then
+            echo "Found existing dev state file"
+            cp terraform.tfstate.dev terraform.tfstate
+          else
+            echo "No existing state file found, will create new state"
           fi
       
       - name: Terraform Init
         id: init
         working-directory: ./base/terraform
         env:
-          TF_VAR_auth0_domain: ${{ steps.secrets.outputs.domain }}
-          TF_VAR_auth0_client_id: ${{ steps.secrets.outputs.client_id }}
-          TF_VAR_auth0_client_secret: ${{ steps.secrets.outputs.client_secret }}
+          TF_VAR_auth0_domain: ${{ secrets.DEV_AUTH0_DOMAIN }}
+          TF_VAR_auth0_client_id: ${{ secrets.DEV_AUTH0_CLIENT_ID }}
+          TF_VAR_auth0_client_secret: ${{ secrets.DEV_AUTH0_CLIENT_SECRET }}
         run: terraform init
       
       - name: Terraform Plan
         id: plan
         working-directory: ./base/terraform
         env:
-          TF_VAR_auth0_domain: ${{ steps.secrets.outputs.domain }}
-          TF_VAR_auth0_client_id: ${{ steps.secrets.outputs.client_id }}
-          TF_VAR_auth0_client_secret: ${{ steps.secrets.outputs.client_secret }}
+          TF_VAR_auth0_domain: ${{ secrets.DEV_AUTH0_DOMAIN }}
+          TF_VAR_auth0_client_id: ${{ secrets.DEV_AUTH0_CLIENT_ID }}
+          TF_VAR_auth0_client_secret: ${{ secrets.DEV_AUTH0_CLIENT_SECRET }}
         run: |
           terraform plan -out=tfplan
           terraform show -no-color tfplan > plan_output.txt
@@ -96,10 +79,43 @@ jobs:
         id: apply
         working-directory: ./base/terraform
         env:
-          TF_VAR_auth0_domain: ${{ steps.secrets.outputs.domain }}
-          TF_VAR_auth0_client_id: ${{ steps.secrets.outputs.client_id }}
-          TF_VAR_auth0_client_secret: ${{ steps.secrets.outputs.client_secret }}
+          TF_VAR_auth0_domain: ${{ secrets.DEV_AUTH0_DOMAIN }}
+          TF_VAR_auth0_client_id: ${{ secrets.DEV_AUTH0_CLIENT_ID }}
+          TF_VAR_auth0_client_secret: ${{ secrets.DEV_AUTH0_CLIENT_SECRET }}
         run: terraform apply -auto-approve tfplan
+      
+      # Save state file back to repository
+      - name: Save Terraform state to repository
+        if: always() && steps.apply.outcome != 'skipped'
+        working-directory: ./base/terraform
+        run: |
+          if [ -f "terraform.tfstate" ]; then
+            cp terraform.tfstate terraform.tfstate.dev
+            
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            
+            git add terraform.tfstate.dev
+            
+            if git diff --staged --quiet; then
+              echo "No state changes to commit"
+            else
+              git commit -m "chore: Update Terraform state for dev [skip ci]"
+              git push origin main
+              echo "State file committed: terraform.tfstate.dev"
+            fi
+          else
+            echo "Warning: terraform.tfstate not found"
+          fi
+      
+      # Upload as artifact for backup
+      - name: Upload state as artifact
+        if: always() && steps.apply.outcome != 'skipped'
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-state-dev-${{ github.run_number }}
+          path: ./base/terraform/terraform.tfstate
+          retention-days: 90
       
       - name: Extract Outputs
         id: outputs
@@ -119,20 +135,20 @@ jobs:
         run: |
           echo "## Deployment Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Environment:** \`${{ steps.env.outputs.environment }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Environment:** \`dev\`" >> $GITHUB_STEP_SUMMARY
           echo "**Status:** ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
           echo "**Triggered by:** @${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
           if [ "${{ steps.apply.outcome }}" == "success" ]; then
-            echo "### ✅ Deployment Successful" >> $GITHUB_STEP_SUMMARY
+            echo "### Deployment Successful" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "**Client Details:**" >> $GITHUB_STEP_SUMMARY
             echo "- Client ID: \`${{ steps.outputs.outputs.client_id }}\`" >> $GITHUB_STEP_SUMMARY
             echo "- Client Name: \`${{ steps.outputs.outputs.client_name }}\`" >> $GITHUB_STEP_SUMMARY
             echo "- App Type: \`${{ steps.outputs.outputs.app_type }}\`" >> $GITHUB_STEP_SUMMARY
           else
-            echo "### ❌ Deployment Failed" >> $GITHUB_STEP_SUMMARY
+            echo "### Deployment Failed" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "Check the logs above for error details." >> $GITHUB_STEP_SUMMARY
           fi
@@ -141,6 +157,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: terraform-plan-${{ steps.env.outputs.environment }}-${{ github.run_number }}
+          name: terraform-plan-dev-${{ github.run_number }}
           path: ./base/terraform/plan_output.txt
           retention-days: 30
