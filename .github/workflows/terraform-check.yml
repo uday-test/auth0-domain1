@@ -6,11 +6,6 @@ on:
       - main
     paths:
       - 'base/base-line/configs/**'
-      - 'base/base-line/validators/**'
-      - 'base/base-line/policies/**'
-      - 'base/terraform/**'
-      - 'apps/**'
-      - 'tenants/**'
 
 permissions:
   contents: read
