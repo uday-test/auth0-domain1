@@ -1,7 +1,7 @@
 {
   "version": 4,
   "terraform_version": "1.6.0",
-  "serial": 5,
+  "serial": 8,
   "lineage": "619dff94-97dc-017b-0bfe-a16535fbcce8",
   "outputs": {
     "database_connection": {
@@ -127,7 +127,7 @@
             "display_name": "",
             "id": "con_sQ2IonJ8MP3Ueq9Z",
             "is_domain_connection": false,
-            "metadata": null,
+            "metadata": {},
             "name": "Custom-Username-Password-Authentication",
             "options": [
               {
@@ -137,17 +137,17 @@
                 "app_id": "",
                 "attribute_map": [],
                 "attributes": [],
-                "auth_params": null,
+                "auth_params": {},
                 "authentication_methods": [],
                 "authorization_endpoint": "",
-                "brute_force_protection": false,
+                "brute_force_protection": true,
                 "client_id": "",
                 "client_secret": "",
                 "community_base_url": "",
-                "configuration": null,
+                "configuration": {},
                 "connection_settings": [],
                 "custom_headers": [],
-                "custom_scripts": null,
+                "custom_scripts": {},
                 "debug": false,
                 "decryption_key": [],
                 "digest_algorithm": "",
@@ -186,21 +186,34 @@
                 "name": "",
                 "non_persistent_attrs": [],
                 "passkey_options": [],
-                "password_complexity_options": [],
+                "password_complexity_options": [
+                  {
+                    "min_length": 12
+                  }
+                ],
                 "password_dictionary": [],
-                "password_history": [],
-                "password_no_personal_info": [],
-                "password_policy": "",
+                "password_history": [
+                  {
+                    "enable": true,
+                    "size": 5
+                  }
+                ],
+                "password_no_personal_info": [
+                  {
+                    "enable": true
+                  }
+                ],
+                "password_policy": "good",
                 "ping_federate_base_url": "",
                 "pkce_enabled": false,
-                "precedence": null,
+                "precedence": [],
                 "protocol_binding": "",
                 "provider": "",
                 "realm_fallback": false,
                 "request_template": "",
                 "requires_username": false,
                 "scopes": [],
-                "scripts": null,
+                "scripts": {},
                 "set_user_root_attributes": "",
                 "should_trust_email_verified_connection": "",
                 "sign_in_endpoint": "",
