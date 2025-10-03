@@ -1,0 +1,329 @@
+{
+  "version": 4,
+  "terraform_version": "1.6.0",
+  "serial": 5,
+  "lineage": "619dff94-97dc-017b-0bfe-a16535fbcce8",
+  "outputs": {
+    "database_connection": {
+      "value": {
+        "id": "con_sQ2IonJ8MP3Ueq9Z",
+        "name": "Custom-Username-Password-Authentication"
+      },
+      "type": [
+        "object",
+        {
+          "id": "string",
+          "name": "string"
+        }
+      ]
+    },
+    "mfa_configuration": {
+      "value": {
+        "otp": true,
+        "policy": "all-applications"
+      },
+      "type": [
+        "object",
+        {
+          "otp": "bool",
+          "policy": "string"
+        }
+      ]
+    },
+    "oidc_configuration": {
+      "value": {
+        "issuer": "https://tenant.auth0.com/",
+        "security_enforce_pkce": true,
+        "supported_grant_types": [
+          "authorization_code",
+          "refresh_token",
+          "client_credentials"
+        ]
+      },
+      "type": [
+        "object",
+        {
+          "issuer": "string",
+          "security_enforce_pkce": "bool",
+          "supported_grant_types": [
+            "tuple",
+            [
+              "string",
+              "string",
+              "string"
+            ]
+          ]
+        }
+      ]
+    },
+    "tenant_branding": {
+      "value": {
+        "colors": [
+          {
+            "page_background": "#ffffff",
+            "primary": "#0057b8"
+          }
+        ],
+        "logo_url": "https://ciam.example.com/logo.png"
+      },
+      "type": [
+        "object",
+        {
+          "colors": [
+            "list",
+            [
+              "object",
+              {
+                "page_background": "string",
+                "primary": "string"
+              }
+            ]
+          ],
+          "logo_url": "string"
+        }
+      ]
+    }
+  },
+  "resources": [
+    {
+      "mode": "managed",
+      "type": "auth0_branding",
+      "name": "tenant",
+      "provider": "provider[\"registry.terraform.io/auth0/auth0\"]",
+      "instances": [
+        {
+          "schema_version": 0,
+          "attributes": {
+            "colors": [
+              {
+                "page_background": "#ffffff",
+                "primary": "#0057b8"
+              }
+            ],
+            "favicon_url": "",
+            "font": [
+              {
+                "url": "https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700\u0026display=swap"
+              }
+            ],
+            "id": "terraform-20251003055649918200000001",
+            "logo_url": "https://ciam.example.com/logo.png",
+            "universal_login": []
+          },
+          "sensitive_attributes": [],
+          "private": "bnVsbA=="
+        }
+      ]
+    },
+    {
+      "mode": "managed",
+      "type": "auth0_connection",
+      "name": "database",
+      "provider": "provider[\"registry.terraform.io/auth0/auth0\"]",
+      "instances": [
+        {
+          "schema_version": 3,
+          "attributes": {
+            "display_name": "",
+            "id": "con_sQ2IonJ8MP3Ueq9Z",
+            "is_domain_connection": false,
+            "metadata": null,
+            "name": "Custom-Username-Password-Authentication",
+            "options": [
+              {
+                "adfs_server": "",
+                "allowed_audiences": [],
+                "api_enable_users": false,
+                "app_id": "",
+                "attribute_map": [],
+                "attributes": [],
+                "auth_params": null,
+                "authentication_methods": [],
+                "authorization_endpoint": "",
+                "brute_force_protection": false,
+                "client_id": "",
+                "client_secret": "",
+                "community_base_url": "",
+                "configuration": null,
+                "connection_settings": [],
+                "custom_headers": [],
+                "custom_scripts": null,
+                "debug": false,
+                "decryption_key": [],
+                "digest_algorithm": "",
+                "disable_cache": false,
+                "disable_self_service_change_password": false,
+                "disable_sign_out": false,
+                "disable_signup": false,
+                "discovery_url": "",
+                "domain": "",
+                "domain_aliases": [],
+                "enable_script_context": false,
+                "enabled_database_customization": false,
+                "entity_id": "",
+                "fed_metadata_xml": "",
+                "fields_map": "",
+                "forward_request_info": false,
+                "from": "",
+                "gateway_authentication": [],
+                "gateway_url": "",
+                "global_token_revocation_jwt_iss": "",
+                "global_token_revocation_jwt_sub": "",
+                "icon_url": "",
+                "identity_api": "",
+                "idp_initiated": [],
+                "import_mode": false,
+                "ips": [],
+                "issuer": "",
+                "jwks_uri": "",
+                "key_id": "",
+                "map_user_id_to_id": false,
+                "max_groups_to_retrieve": "",
+                "messaging_service_sid": "",
+                "metadata_url": "",
+                "metadata_xml": "",
+                "mfa": [],
+                "name": "",
+                "non_persistent_attrs": [],
+                "passkey_options": [],
+                "password_complexity_options": [],
+                "password_dictionary": [],
+                "password_history": [],
+                "password_no_personal_info": [],
+                "password_policy": "",
+                "ping_federate_base_url": "",
+                "pkce_enabled": false,
+                "precedence": null,
+                "protocol_binding": "",
+                "provider": "",
+                "realm_fallback": false,
+                "request_template": "",
+                "requires_username": false,
+                "scopes": [],
+                "scripts": null,
+                "set_user_root_attributes": "",
+                "should_trust_email_verified_connection": "",
+                "sign_in_endpoint": "",
+                "sign_out_endpoint": "",
+                "sign_saml_request": false,
+                "signature_algorithm": "",
+                "signing_cert": "",
+                "signing_key": [],
+                "strategy_version": 0,
+                "subject": "",
+                "syntax": "",
+                "team_id": "",
+                "template": "",
+                "tenant_domain": "",
+                "token_endpoint": "",
+                "token_endpoint_auth_method": "",
+                "token_endpoint_auth_signing_alg": "",
+                "totp": [],
+                "twilio_sid": "",
+                "twilio_token": "",
+                "type": "",
+                "upstream_params": "",
+                "use_cert_auth": false,
+                "use_kerberos": false,
+                "use_wsfed": false,
+                "user_id_attribute": "",
+                "userinfo_endpoint": "",
+                "validation": [],
+                "waad_common_endpoint": false,
+                "waad_protocol": ""
+              }
+            ],
+            "realms": [
+              "Custom-Username-Password-Authentication"
+            ],
+            "show_as_button": null,
+            "strategy": "auth0"
+          },
+          "sensitive_attributes": [],
+          "private": "eyJzY2hlbWFfdmVyc2lvbiI6IjMifQ=="
+        }
+      ]
+    },
+    {
+      "mode": "managed",
+      "type": "auth0_guardian",
+      "name": "mfa",
+      "provider": "provider[\"registry.terraform.io/auth0/auth0\"]",
+      "instances": [
+        {
+          "schema_version": 0,
+          "attributes": {
+            "duo": [
+              {
+                "enabled": false,
+                "hostname": "",
+                "integration_key": "",
+                "secret_key": ""
+              }
+            ],
+            "email": false,
+            "id": "terraform-20251003055649918400000002",
+            "otp": true,
+            "phone": [
+              {
+                "enabled": false,
+                "message_types": [],
+                "options": [],
+                "provider": ""
+              }
+            ],
+            "policy": "all-applications",
+            "push": [
+              {
+                "amazon_sns": [],
+                "custom_app": [],
+                "direct_apns": [],
+                "direct_fcm": [],
+                "enabled": false,
+                "provider": ""
+              }
+            ],
+            "recovery_code": false,
+            "webauthn_platform": [
+              {
+                "enabled": true,
+                "override_relying_party": false,
+                "relying_party_identifier": ""
+              }
+            ],
+            "webauthn_roaming": [
+              {
+                "enabled": true,
+                "override_relying_party": false,
+                "relying_party_identifier": "",
+                "user_verification": "discouraged"
+              }
+            ]
+          },
+          "sensitive_attributes": [],
+          "private": "bnVsbA=="
+        }
+      ]
+    },
+    {
+      "mode": "managed",
+      "type": "auth0_prompt",
+      "name": "login",
+      "provider": "provider[\"registry.terraform.io/auth0/auth0\"]",
+      "instances": [
+        {
+          "schema_version": 0,
+          "attributes": {
+            "id": "terraform-20251003055649918600000003",
+            "identifier_first": true,
+            "universal_login_experience": "new",
+            "webauthn_platform_first_factor": false
+          },
+          "sensitive_attributes": [],
+          "private": "bnVsbA=="
+        }
+      ]
+    }
+  ],
+  "check_results": null
+}
