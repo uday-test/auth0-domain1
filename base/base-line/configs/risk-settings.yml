@@ -4,7 +4,7 @@ brute_force_protection:
   enabled: true
 
 bot_detection:
-  enabled: false
+  enabled: true
 
 breached_password_detection:
   enabled: true
