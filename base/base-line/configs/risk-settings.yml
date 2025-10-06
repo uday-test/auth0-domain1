@@ -1,4 +1,4 @@
-# Security & Risk Management Settings
+# Security & Risk Management Settings check
 
 brute_force_protection:
   enabled: true
