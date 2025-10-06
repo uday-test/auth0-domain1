@@ -13,7 +13,7 @@ auth0_client:
   
   oidc_conformant:
     required: true
-    must_equal: false
+    must_equal: true
   
   is_first_party:
     required: true

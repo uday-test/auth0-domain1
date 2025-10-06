@@ -3,7 +3,7 @@ auth0_client:
   name: "Application - Acceptance Test"
   app_type: "spa"
   is_first_party: true
-  oidc_conformant: false
+  oidc_conformant: true
   callbacks:
     - "https://example.com/callback"
   
