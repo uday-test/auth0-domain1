@@ -1,20 +1,41 @@
-# ===== Core / platform ownership =====
-/base/**              @uday-test/ciam-core
-/overlays/**          @uday-test/ciam-core
-/tenants/prod/**      @uday-test/ciam-core
-/.github/**           @uday-test/ciam-core
+# CODEOWNERS file for auth0-domain1 repository
+# Default: ciam-core team reviews everything
+# Exception: App-specific folders have their own reviewer teams
 
-# (Optional) root & shared docs owned by core
-/README.md            @uday-test/ciam-core
-/LICENSE              @uday-test/ciam-core
+# Default owner for all files
+* @uday-test/ciam-core
 
-# ===== App1 team ownership =====
-/apps/app1/**                 @uday-test/team-app1
-/tenants/dev/app1-team/**     @uday-test/team-app1
+# Base configurations
+/base/ @uday-test/ciam-core
 
-# ===== App2 team ownership =====
-/apps/app2/**                 @uday-test/team-app2
-/tenants/dev/app2-team/**     @uday-test/team-app2
+# OPA/Rego policies
+/policies/ @uday-test/ciam-core
 
-# ===== Default catch-all (keep last) =====
-*                      @uday-test/ciam-core
+# Tenant common configurations
+/tenants-common/ @uday-test/ciam-core
+
+# Hardening overlays
+/overlays/ @uday-test/ciam-core
+/shared-sec/ @uday-test/ciam-core
+
+# Environment-specific tenant configs
+/tenants/dev/ @uday-test/ciam-core
+/tenants/qa/ @uday-test/ciam-core
+/tenants/prod/ @uday-test/ciam-core
+
+# App-specific resources - Each app has its own reviewer team
+# Replace 'app1' and 'app2' with your actual app folder names
+/apps/app1/ @uday-test/team-app1-reviewers
+/apps/app2/ @uday-test/team-app2-reviewers
+
+# Catalogs
+/catalogs/ @uday-test/ciam-core
+
+# Helper scripts
+/scripts/ @uday-test/ciam-core
+
+# CI/CD workflows
+/.github/workflows/ @uday-test/ciam-core
+
+# CODEOWNERS file itself
+/CODEOWNERS @uday-test/ciam-core
