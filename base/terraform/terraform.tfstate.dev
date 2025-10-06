@@ -1,12 +1,12 @@
 {
   "version": 4,
   "terraform_version": "1.6.0",
-  "serial": 10,
+  "serial": 13,
   "lineage": "619dff94-97dc-017b-0bfe-a16535fbcce8",
   "outputs": {
     "database_connection": {
       "value": {
-        "id": "con_sQ2IonJ8MP3Ueq9Z",
+        "id": "con_nujRtfUgYChqWj3U",
         "name": "Custom-Username-Password-Authentication"
       },
       "type": [
@@ -125,9 +125,9 @@
           "schema_version": 3,
           "attributes": {
             "display_name": "",
-            "id": "con_sQ2IonJ8MP3Ueq9Z",
+            "id": "con_nujRtfUgYChqWj3U",
             "is_domain_connection": false,
-            "metadata": {},
+            "metadata": null,
             "name": "Custom-Username-Password-Authentication",
             "options": [
               {
@@ -137,7 +137,7 @@
                 "app_id": "",
                 "attribute_map": [],
                 "attributes": [],
-                "auth_params": {},
+                "auth_params": null,
                 "authentication_methods": [
                   {
                     "passkey": [
@@ -157,10 +157,10 @@
                 "client_id": "",
                 "client_secret": "",
                 "community_base_url": "",
-                "configuration": {},
+                "configuration": null,
                 "connection_settings": [],
                 "custom_headers": [],
-                "custom_scripts": {},
+                "custom_scripts": null,
                 "debug": false,
                 "decryption_key": [],
                 "digest_algorithm": "",
@@ -230,14 +230,14 @@
                 "password_policy": "good",
                 "ping_federate_base_url": "",
                 "pkce_enabled": false,
-                "precedence": [],
+                "precedence": null,
                 "protocol_binding": "",
                 "provider": "",
                 "realm_fallback": false,
                 "request_template": "",
                 "requires_username": false,
                 "scopes": [],
-                "scripts": {},
+                "scripts": null,
                 "set_user_root_attributes": "",
                 "should_trust_email_verified_connection": "",
                 "sign_in_endpoint": "",
