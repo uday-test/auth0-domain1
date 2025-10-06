@@ -20,6 +20,31 @@ locals {
   risk_settings = yamldecode(file("${path.module}/../base-line/configs/risk-settings.yml"))
   ux_settings   = yamldecode(file("${path.module}/../base-line/configs/ux-settings.yml"))
 }
+
+# ===========================================
+# AUTH0 CLIENT/APPLICATION
+# ===========================================
+
+resource "auth0_client" "app" {
+  name            = local.app_oidc.auth0_client.name
+  app_type        = local.app_oidc.auth0_client.app_type
+  is_first_party  = local.app_oidc.auth0_client.is_first_party
+  oidc_conformant = local.app_oidc.auth0_client.oidc_conformant
+  callbacks       = local.app_oidc.auth0_client.callbacks
+  grant_types     = local.app_oidc.auth0_client.grant_types
+  
+  jwt_configuration {
+    lifetime_in_seconds = local.app_oidc.auth0_client.jwt_configuration.lifetime_in_seconds
+    secret_encoded      = local.app_oidc.auth0_client.jwt_configuration.secret_encoded
+    alg                 = local.app_oidc.auth0_client.jwt_configuration.alg
+  }
+  
+  refresh_token {
+    rotation_type   = local.app_oidc.auth0_client.refresh_token.rotation_type
+    expiration_type = local.app_oidc.auth0_client.refresh_token.expiration_type
+  }
+}
+
 # ===========================================
 # TENANT-LEVEL RESOURCES
 # ===========================================
@@ -94,6 +119,17 @@ resource "auth0_guardian" "mfa" {
 # OUTPUTS
 # ===========================================
 
+output "auth0_client" {
+  value = {
+    name            = auth0_client.app.name
+    client_id       = auth0_client.app.client_id
+    app_type        = auth0_client.app.app_type
+    oidc_conformant = auth0_client.app.oidc_conformant
+    grant_types     = auth0_client.app.grant_types
+  }
+  description = "Auth0 client/application configuration"
+}
+
 output "tenant_branding" {
   value = {
     logo_url = auth0_branding.tenant.logo_url
@@ -116,13 +152,4 @@ output "mfa_configuration" {
     otp    = auth0_guardian.mfa.otp
   }
   description = "MFA configuration status"
-}
-
-output "oidc_configuration" {
-  value = {
-    issuer                  = local.app_oidc.oidc.issuer
-    supported_grant_types   = local.app_oidc.oidc.supported_grant_types
-    security_enforce_pkce   = local.app_oidc.oidc.security.enforce_pkce
-  }
-  description = "Tenant OIDC configuration"
 }

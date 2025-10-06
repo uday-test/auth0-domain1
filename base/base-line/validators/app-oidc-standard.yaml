@@ -1,32 +1,49 @@
-# Standard OIDC Configuration
+# App OIDC Standard Configuration
+# This standard defines the validation rules for Auth0 client configurations
 
-oidc:
+auth0_client:
   required: true
-  issuer:
-    required: true
-    must_start_with: "https://"
-    must_contain: ".auth0.com/"
   
-  supported_grant_types:
+  name:
+    required: true
+  
+  app_type:
+    required: true
+    must_equal: "spa"
+  
+  oidc_conformant:
+    required: true
+    must_equal: false
+  
+  is_first_party:
+    required: true
+    must_equal: true
+  
+  callbacks:
+    required: true
+  
+  grant_types:
     required: true
     must_include:
       - "authorization_code"
   
-  supported_response_types:
+  jwt_configuration:
     required: true
-    must_include:
-      - "code"
-  
-  supported_response_modes:
-    required: true
-  
-  security:
-    required: true
-    require_https:
+    lifetime_in_seconds:
+      required: true
+      min_value: 300
+    secret_encoded:
       required: true
       must_equal: true
-    enforce_pkce:
+    alg:
       required: true
-      must_equal: true
-    require_pushed_authorization_requests:
+      must_equal: "RS256"
+  
+  refresh_token:
+    required: true
+    rotation_type:
       required: true
+      must_equal: "rotating"
+    expiration_type:
+      required: true
+      must_equal: "expiring"
