@@ -5,6 +5,7 @@ Stand up a **clean repo scaffold** to support Auth0 configuration-as-code, polic
 This is the foundation for the multi-day plan (Days 1–14).
 
 ## Repository Layout
+```
 auth0-domain1/
 │
 ├── base/
@@ -101,7 +102,7 @@ auth0-domain1/
 ├── git/
 ├── CODEOWNERS
 └── README.md
-
+```
 ## Contribution Rules (Day 1)
 - Use **feature branches** and open **PRs** into `main`.
 - No direct pushes to `main`. (Formal branch protection enabled on Day 2.)
