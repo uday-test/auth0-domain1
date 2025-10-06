@@ -1,7 +1,7 @@
 {
   "version": 4,
   "terraform_version": "1.6.0",
-  "serial": 13,
+  "serial": 16,
   "lineage": "619dff94-97dc-017b-0bfe-a16535fbcce8",
   "outputs": {
     "database_connection": {
@@ -27,32 +27,6 @@
         {
           "otp": "bool",
           "policy": "string"
-        }
-      ]
-    },
-    "oidc_configuration": {
-      "value": {
-        "issuer": "https://tenant.auth0.com/",
-        "security_enforce_pkce": true,
-        "supported_grant_types": [
-          "authorization_code",
-          "refresh_token",
-          "client_credentials"
-        ]
-      },
-      "type": [
-        "object",
-        {
-          "issuer": "string",
-          "security_enforce_pkce": "bool",
-          "supported_grant_types": [
-            "tuple",
-            [
-              "string",
-              "string",
-              "string"
-            ]
-          ]
         }
       ]
     },
@@ -127,7 +101,7 @@
             "display_name": "",
             "id": "con_nujRtfUgYChqWj3U",
             "is_domain_connection": false,
-            "metadata": null,
+            "metadata": {},
             "name": "Custom-Username-Password-Authentication",
             "options": [
               {
@@ -137,7 +111,7 @@
                 "app_id": "",
                 "attribute_map": [],
                 "attributes": [],
-                "auth_params": null,
+                "auth_params": {},
                 "authentication_methods": [
                   {
                     "passkey": [
@@ -157,10 +131,10 @@
                 "client_id": "",
                 "client_secret": "",
                 "community_base_url": "",
-                "configuration": null,
+                "configuration": {},
                 "connection_settings": [],
                 "custom_headers": [],
-                "custom_scripts": null,
+                "custom_scripts": {},
                 "debug": false,
                 "decryption_key": [],
                 "digest_algorithm": "",
@@ -230,14 +204,14 @@
                 "password_policy": "good",
                 "ping_federate_base_url": "",
                 "pkce_enabled": false,
-                "precedence": null,
+                "precedence": [],
                 "protocol_binding": "",
                 "provider": "",
                 "realm_fallback": false,
                 "request_template": "",
                 "requires_username": false,
                 "scopes": [],
-                "scripts": null,
+                "scripts": {},
                 "set_user_root_attributes": "",
                 "should_trust_email_verified_connection": "",
                 "sign_in_endpoint": "",
