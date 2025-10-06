@@ -10,95 +10,43 @@ auth0-domain1/
 │
 ├── base/
 │   ├── base-line/
-│   │   ├── configs/
-│   │   │   ├── app-oidc.yml
-│   │   │   ├── auth-settings.yml
-│   │   │   ├── risk-settings.yml
-│   │   │   └── ux-settings.yml
+│   │   ├── configs/ (4 YAML files: app-oidc, auth-settings, risk-settings, ux-settings)
 │   │   ├── policies/
-│   │   │   └── baseline-validator.rego
-│   │   └── validators/
-│   │       ├── app-oidc-standard.yaml
-│   │       ├── auth-settings-standard.yaml
-│   │       ├── risk-settings-standard.yaml
-│   │       └── ux-settings-standard.yaml
+│   │   │   └── baseline-validator.rego (Validates configurations against baseline standards)
+│   │   └── validators/ (4 YAML files: standards for app-oidc, auth-settings, risk-settings, ux-settings)
 │   ├── policies/
-│   │   ├── auth0_policy.rego
-│   │   └── path_guard.rego
-│   ├── tenants-common/
-│   │   ├── orgs.yml
-│   │   ├── security.yml
-│   │   └── tokens.yml
-│   └── terraform/
-│       ├── main.tf
-│       ├── terraform.tfstate.dev
-│       └── variables.tf
+│   │   ├── auth0_policy.rego (validates configuration on all apps in the root level)
+│   │   └── path_guard.rego (Enforces path-based access control and ownership)
+│   ├── tenants-common/ (3 YAML files: standards for orgs, security, tokens )
+│   └── terraform/ (3 files: main.tf, terraform.tfstate.dev, variables.tf)
 │
 ├── overlays/
 │   ├── policies/
-│   │   └── shared_sec.rego
-│   └── shared-sec/
-│       └── identity_access.yml
+│   │   └── shared_sec.rego (Security overlay validation and enforcement across the levels)
+│   └── shared-sec/ (1 YAML file:standard file identity_access)
 │
 ├── tenants/
 │   ├── dev/
-│   │   ├── tenantA/
-│   │   │   ├── app-oidc.yml
-│   │   │   ├── auth-settings.yml
-│   │   │   └── ux-settings.yml
-│   │   └── tenantB/
-│   │       ├── app-oidc.yml
-│   │       ├── auth-settings.yml
-│   │       └── ux-settings.yml
+│   │   ├── tenantA/ (3 YAML files: app-oidc, auth-settings, ux-settings)
+│   │   └── tenantB/ (3 YAML files: app-oidc, auth-settings, ux-settings)
 │   ├── qa/
-│   │   ├── tenantA/
-│   │   │   ├── app-oidc.yml
-│   │   │   ├── auth-settings.yml
-│   │   │   ├── risk-settings.yml
-│   │   │   └── ux-settings.yml
-│   │   └── tenantB/
-│   │       ├── app-oidc.yml
-│   │       ├── auth-settings.yml
-│   │       ├── risk-settings.yml
-│   │       └── ux-settings.yml
+│   │   ├── tenantA/ (4 YAML files: app-oidc, auth-settings, risk-settings, ux-settings)
+│   │   └── tenantB/ (4 YAML files: app-oidc, auth-settings, risk-settings, ux-settings)
 │   ├── prod/
-│   │   ├── tenantA/
-│   │   │   ├── app-oidc.yml
-│   │   │   ├── auth-settings.yml
-│   │   │   ├── risk-settings.yml
-│   │   │   └── ux-settings.yml
-│   │   └── tenantB/
-│   │       ├── app-oidc.yml
-│   │       ├── auth-settings.yml
-│   │       ├── risk-settings.yml
-│   │       └── ux-settings.yml
+│   │   ├── tenantA/ (4 YAML files: app-oidc, auth-settings, risk-settings, ux-settings)
+│   │   └── tenantB/ (4 YAML files: app-oidc, auth-settings, risk-settings, ux-settings)
 │   └── overlays/
 │       ├── policies/
-│       │   └── auth0_validation.rego
-│       ├── validators/
-│           ├── app-oidc-standard.yml
-│           ├── auth-settings-standard.yml
-│           ├── risk-settings-standard.yml
-│           └── ux-settings-standard.yml
+│       │   └── auth0_validation.rego (Tenant-specific validation rules)
+│       ├── validators/ (4 YAML files: standards for app-oidc, auth-settings, risk-settings, ux-settings)
 │       
 │
 ├── apps/
-│   ├── app1/
-│   │   ├── orgs.yml
-│   │   ├── security.yml
-│   │   └── tokens.yml
-│   └── app2/
-│       ├── orgs.yml
-│       ├── security.yml
-│       └── tokens.yml
+│   ├── app1/ (3 YAML files: orgs, security, tokens)
+│   └── app2/ (3 YAML files: orgs, security, tokens)
 │
-├── catalogs/
-│
-├── conftest-policy/
-│
+├── catalogs/ 
 ├── scripts/
-│   
-│
 ├── git/
 ├── CODEOWNERS
 └── README.md
