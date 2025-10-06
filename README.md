@@ -5,22 +5,102 @@ Stand up a **clean repo scaffold** to support Auth0 configuration-as-code, polic
 This is the foundation for the multi-day plan (Days 1–14).
 
 ## Repository Layout
-```text
-base/                 # Baseline policies and shared building blocks (no tenant-specific secrets)
-  policies/           # Will hold OPA/Rego policies (Day 3)
-  tenants-common/     # Org-wide Auth0 config, prompts, MFA baseline (Day 5)
-overlays/             # Hardening overlays layered on top of base
-  shared-sec/         # Security overlays (TTL, factor restrictions) (Day 5)
-tenants/              # Per-environment tenant config
-  dev/
-  qa/
-  prod/
-apps/                 # App-specific resources (each app in its own folder) (Day 10)
-catalogs/             # Optionally shared catalogs (connections, grants, customs)
-scripts/              # Helper scripts (preview.sh, deploy.sh to be added in Day 5+7)
-.github/workflows/    # CI workflows
-CODEOWNERS            # Will be populated in Day 2
-```
+auth0-domain1/
+│
+├── base/
+│   ├── base-line/
+│   │   ├── configs/
+│   │   │   ├── app-oidc.yml
+│   │   │   ├── auth-settings.yml
+│   │   │   ├── risk-settings.yml
+│   │   │   └── ux-settings.yml
+│   │   ├── policies/
+│   │   │   └── baseline-validator.rego
+│   │   └── validators/
+│   │       ├── app-oidc-standard.yaml
+│   │       ├── auth-settings-standard.yaml
+│   │       ├── risk-settings-standard.yaml
+│   │       └── ux-settings-standard.yaml
+│   ├── policies/
+│   │   ├── auth0_policy.rego
+│   │   └── path_guard.rego
+│   ├── tenants-common/
+│   │   ├── orgs.yml
+│   │   ├── security.yml
+│   │   └── tokens.yml
+│   └── terraform/
+│       ├── main.tf
+│       ├── terraform.tfstate.dev
+│       └── variables.tf
+│
+├── overlays/
+│   ├── policies/
+│   │   └── shared_sec.rego
+│   └── shared-sec/
+│       └── identity_access.yml
+│
+├── tenants/
+│   ├── dev/
+│   │   ├── tenantA/
+│   │   │   ├── app-oidc.yml
+│   │   │   ├── auth-settings.yml
+│   │   │   └── ux-settings.yml
+│   │   └── tenantB/
+│   │       ├── app-oidc.yml
+│   │       ├── auth-settings.yml
+│   │       └── ux-settings.yml
+│   ├── qa/
+│   │   ├── tenantA/
+│   │   │   ├── app-oidc.yml
+│   │   │   ├── auth-settings.yml
+│   │   │   ├── risk-settings.yml
+│   │   │   └── ux-settings.yml
+│   │   └── tenantB/
+│   │       ├── app-oidc.yml
+│   │       ├── auth-settings.yml
+│   │       ├── risk-settings.yml
+│   │       └── ux-settings.yml
+│   ├── prod/
+│   │   ├── tenantA/
+│   │   │   ├── app-oidc.yml
+│   │   │   ├── auth-settings.yml
+│   │   │   ├── risk-settings.yml
+│   │   │   └── ux-settings.yml
+│   │   └── tenantB/
+│   │       ├── app-oidc.yml
+│   │       ├── auth-settings.yml
+│   │       ├── risk-settings.yml
+│   │       └── ux-settings.yml
+│   └── overlays/
+│       ├── policies/
+│       │   └── auth0_validation.rego
+│       ├── validators/
+│           ├── app-oidc-standard.yml
+│           ├── auth-settings-standard.yml
+│           ├── risk-settings-standard.yml
+│           └── ux-settings-standard.yml
+│       
+│
+├── apps/
+│   ├── app1/
+│   │   ├── orgs.yml
+│   │   ├── security.yml
+│   │   └── tokens.yml
+│   └── app2/
+│       ├── orgs.yml
+│       ├── security.yml
+│       └── tokens.yml
+│
+├── catalogs/
+│
+├── conftest-policy/
+│
+├── scripts/
+│   
+│
+├── git/
+├── CODEOWNERS
+└── README.md
 
 ## Contribution Rules (Day 1)
 - Use **feature branches** and open **PRs** into `main`.
