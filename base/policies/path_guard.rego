@@ -14,22 +14,20 @@ actor_team_set := s if {
   s := { lower(t) | some t in input.actor_teams; is_string(t) }
 } else := {} if { true }
 
-# -------- team → tenant → app mapping --------
-team_to_tenant := {
-  "team-app1": "app1-team",
-  "team-app2": "app2-team",
+# -------- team → app mapping (environment-level tenants only) --------
+# Map app teams to their respective apps (both main team and reviewers team)
+team_to_app := {
+  "team-app1": "app1",
+  "team-app1-reviewers": "app1",
+  "team-app2": "app2",
+  "team-app2-reviewers": "app2",
 }
 
-tenant_to_app := {
-  "app1-team": "app1",
-  "app2-team": "app2",
-}
-
-# Optional: core bypass
+# Core bypass - ciam-core team can access everything
 core_teams := {"ciam-core"}
 core_bypass if { some t; actor_team_set[t]; core_teams[t] }
 
-# -------- derive from files --------
+# -------- derive app from files --------
 apps_from_files := s if {
   valid_files
   s := {a | some f in input.files
@@ -42,47 +40,47 @@ apps_from_files := s if {
   }
 } else := {} if { true }
 
-tenants_from_files := s if {
+# -------- derive environment from files --------
+envs_from_files := s if {
   valid_files
-  s := {t | some f in input.files
+  s := {e | some f in input.files
     is_string(f)
     seg := split(norm_path(f), "/")
-    count(seg) >= 3
+    count(seg) >= 2
     seg[0] == "tenants"
-    seg[1] == "dev"
-    t := lower(seg[2])
-    t != ""
+    e := lower(seg[1])
+    e != ""
   }
 } else := {} if { true }
 
 derived_app := a if { count(apps_from_files) == 1; some x; apps_from_files[x]; a := x }
-derived_tenant := t if { count(tenants_from_files) == 1; some y; tenants_from_files[y]; t := y }
+derived_env := e if { count(envs_from_files) == 1; some y; envs_from_files[y]; e := y }
 
-# -------- effective values (path > actor team) --------
-effective_tenant := et if { _ := derived_tenant; et := derived_tenant }
-effective_tenant := et if { not derived_tenant; some ts in actor_team_set; et := team_to_tenant[ts] }
-
+# -------- effective values --------
 effective_app := ea if { _ := derived_app; ea := derived_app }
-effective_app := ea if { not derived_app; et := effective_tenant; ea := tenant_to_app[et] }
+effective_app := ea if { not derived_app; some ts in actor_team_set; ea := team_to_app[ts] }
+
+effective_env := ee if { _ := derived_env; ee := derived_env }
 
 has_effective_app if { _ := effective_app }
-has_effective_tenant if { _ := effective_tenant }
+has_effective_env if { _ := effective_env }
 
-# -------- enforce tenant→app pairing --------
-deny contains msg if {
-  not core_bypass
-  has_effective_tenant
-  not tenant_to_app[effective_tenant]
-  msg := sprintf("Tenant %q has no registered app mapping; configure tenant_to_app.", [effective_tenant])
+# Get the actor's allowed app based on their team membership
+actor_allowed_app := aa if {
+  some ts in actor_team_set
+  aa := team_to_app[ts]
 }
 
+has_actor_allowed_app if { _ := actor_allowed_app }
+
+# -------- app authorization check --------
+# Ensure actor team is authorized for the app they're touching
 deny contains msg if {
   not core_bypass
-  has_effective_tenant
   has_effective_app
-  expected_app := tenant_to_app[effective_tenant]
-  expected_app != effective_app
-  msg := sprintf("Team/app mismatch: tenant %q is paired with app %q, but PR touches app %q.", [effective_tenant, expected_app, effective_app])
+  has_actor_allowed_app
+  effective_app != actor_allowed_app
+  msg := sprintf("Access denied: Your team (app: %s) cannot modify files in app: %s", [actor_allowed_app, effective_app])
 }
 
 # -------- ambiguity checks --------
@@ -92,52 +90,44 @@ deny contains msg if {
   count(apps_from_files) > 1
   msg := sprintf("Multiple apps touched: %v. Limit PR to one app.", [apps_from_files])
 }
+
 deny contains msg if {
   not core_bypass
   not has_effective_app
   count(apps_from_files) == 0
+  some f in input.files
+  startswith(norm_path(f), "apps/")
   msg := "Cannot determine app (from paths or actor team)."
 }
 
 deny contains msg if {
   not core_bypass
-  not has_effective_tenant
-  count(tenants_from_files) > 1
-  msg := sprintf("Multiple dev tenants touched: %v. Limit PR to one tenant.", [tenants_from_files])
+  count(envs_from_files) > 1
+  msg := sprintf("Multiple environments touched: %v. Limit PR to one environment.", [envs_from_files])
 }
+
+# -------- environment access control --------
+# Non-core teams can only access dev environment
 deny contains msg if {
   not core_bypass
-  not has_effective_tenant
-  count(tenants_from_files) == 0
-  msg := "Cannot determine tenant (from paths or actor team)."
+  has_effective_env
+  effective_env != "dev"
+  msg := sprintf("Access denied: Only 'dev' environment is allowed. Attempted to access: %s", [effective_env])
 }
 
-# -------- prefixes & scope helpers --------
-app_prefix := ap if { has_effective_app; ap := sprintf("apps/%s/", [effective_app]) }
-tenant_prefix := tp if { has_effective_tenant; tp := sprintf("tenants/dev/%s/", [effective_tenant]) }
-
-prefix_set := s if {
-  s1 := {p | p := app_prefix}
-  s2 := {p | p := tenant_prefix}
-  s := union({s1, s2})
-}
-
-allowed_prefixes := arr if {
-  aps := [p | p := app_prefix]
-  tps := [p | p := tenant_prefix]
-  arr := array.concat(aps, tps)
-}
-
-file_in_scope(f) if {
-  is_string(f)
-  fp := norm_path(f)
-  some p; prefix_set[p]
-  startswith(fp, p)
-}
-
-# -------- denies --------
+# Prod access is completely blocked for non-core teams
 deny contains msg if {
   not core_bypass
+  valid_files
+  some f in input.files
+  startswith(norm_path(f), "tenants/prod/")
+  msg := sprintf("Prod environment access is not allowed: %s", [f])
+}
+
+# -------- app scope enforcement --------
+deny contains msg if {
+  not core_bypass
+  has_effective_app
   valid_files
   some f in input.files
   fp := norm_path(f)
@@ -145,33 +135,17 @@ deny contains msg if {
   not startswith(fp, sprintf("apps/%s/", [effective_app]))
   msg := sprintf("App path out of scope: %s (expected apps/%s/)", [fp, effective_app])
 }
-deny contains msg if {
-  not core_bypass
-  valid_files
-  some f in input.files
-  fp := norm_path(f)
-  startswith(fp, "tenants/dev/")
-  not startswith(fp, sprintf("tenants/dev/%s/", [effective_tenant]))
-  msg := sprintf("Tenant path out of scope: %s (expected tenants/dev/%s/)", [fp, effective_tenant])
-}
-deny contains msg if {
-  not core_bypass
-  valid_files
-  some f in input.files
-  startswith(norm_path(f), "tenants/prod/")
-  msg := sprintf("Prod tenant path is not allowed: %s", [f])
-}
+
+# -------- allowed paths for app teams --------
+# Define what app teams CAN access (whitelist approach)
+allowed_paths_for_app_teams := {"apps/", "tenants/dev/", "tenants/qa/"}
 
 deny contains msg if {
   not core_bypass
   valid_files
   some f in input.files
-  not startswith(norm_path(f), "apps/")
-  not startswith(norm_path(f), "tenants/dev/")
-  not startswith(norm_path(f), "tenants/qa/")
-  not startswith(norm_path(f), "tenants/prod/")
-  not startswith(norm_path(f), "base/")
-  not startswith(norm_path(f), "overlays/")
-  not startswith(norm_path(f), "conftest-policy/")
-  msg := sprintf("Out-of-scope change: %s (allowed prefixes: %v)", [f, allowed_prefixes])
+  fp := norm_path(f)
+  # Check if file starts with any allowed path
+  not some allowed in allowed_paths_for_app_teams; startswith(fp, allowed)
+  msg := sprintf("Access denied: %s (app teams can only access: apps/, tenants/dev/, tenants/qa/)", [f])
 }

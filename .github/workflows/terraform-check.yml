@@ -156,37 +156,12 @@ jobs:
           exit 0
         continue-on-error: true
       
-      - name: Capture Plan Output
-        id: show
-        if: always() && steps.plan.outcome != 'skipped'
-        working-directory: ./base/terraform
-        run: |
-          if [ -f tfplan ]; then
-            terraform show -no-color tfplan > plan_output.txt 2>&1
-          else
-            echo "Plan file not generated - see errors above" > plan_output.txt
-          fi
-        continue-on-error: true
-      
       - name: Comment PR with Plan
         uses: actions/github-script@v7
         if: always() && github.event_name == 'pull_request'
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const fs = require('fs');
-            
-            let planOutput = 'Plan output not available';
-            try {
-              planOutput = fs.readFileSync('./base/terraform/plan_output.txt', 'utf8');
-              if (planOutput.length > 65000) {
-                planOutput = planOutput.substring(0, 65000) + '\n\n... (truncated)';
-              }
-            } catch (error) {
-              planOutput = `Error reading plan output: ${error.message}`;
-            }
-            
-            const fmtStatus = '${{ steps.fmt.outcome }}' === 'success' ? '✅' : '❌';
             const initStatus = '${{ steps.init.outcome }}' === 'success' ? '✅' : '❌';
             const validateStatus = '${{ steps.validate.outcome }}' === 'success' ? '✅' : '❌';
             const planStatus = '${{ steps.plan.outcome }}' === 'success' ? '✅' : '❌';
@@ -207,18 +182,9 @@ jobs:
             
             | Step | Status |
             |------|--------|
-            | Format | ${fmtStatus} |
             | Init | ${initStatus} |
             | Validate | ${validateStatus} |
             | Plan | ${planStatus} ${planMessage} |
-            
-            <details><summary>Show Plan Output</summary>
-            
-            \`\`\`terraform
-            ${planOutput}
-            \`\`\`
-            
-            </details>
             
             *Environment: \`dev\` | Triggered by: @${{ github.actor }}*`;
             

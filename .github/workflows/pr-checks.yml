@@ -109,7 +109,7 @@ jobs:
           jq -Rsn '[inputs | split("\n")[] | select(length>0)]' < /tmp/changed.txt > /tmp/files.json
           echo "files.json:"; cat /tmp/files.json
 
-      - name: Resolve actor teams (optional)
+      - name: Resolve actor teams (PR author's teams)
         id: teams
         shell: bash
         run: |
@@ -117,11 +117,38 @@ jobs:
           if [ -n "${ORG_TOKEN:-}" ]; then
             API="https://api.github.com"
             ORG="${{ github.repository_owner }}"
+            PR_AUTHOR="${{ github.event.pull_request.user.login }}"
             HDR="Authorization: Bearer $ORG_TOKEN"
             ACC="Accept: application/vnd.github+json"
-            curl -sSfL -H "$HDR" -H "$ACC" "$API/user/teams?per_page=100" \
-              | jq --arg ORG "$ORG" '[.[] | select(.organization.login==$ORG) | .slug | ascii_downcase]' \
-              > /tmp/actor_teams.json || echo "[]">/tmp/actor_teams.json
+            
+            echo "Fetching teams for PR author: $PR_AUTHOR"
+            
+            # Get all teams in the org
+            ALL_TEAMS=$(curl -sSfL -H "$HDR" -H "$ACC" \
+              "$API/orgs/$ORG/teams?per_page=100" \
+              | jq -r '.[].slug')
+            
+            # Check which teams the PR author belongs to
+            USER_TEAMS=()
+            for team in $ALL_TEAMS; do
+              # Check if user is a member of this team
+              STATUS_CODE=$(curl -sSfL -o /dev/null -w "%{http_code}" \
+                -H "$HDR" -H "$ACC" \
+                "$API/orgs/$ORG/teams/$team/memberships/$PR_AUTHOR")
+              
+              if [ "$STATUS_CODE" = "200" ]; then
+                USER_TEAMS+=("$team")
+                echo "✓ $PR_AUTHOR is in team: $team"
+              fi
+            done
+            
+            # Convert to JSON array
+            if [ ${#USER_TEAMS[@]} -eq 0 ]; then
+              echo "[]" > /tmp/actor_teams.json
+            else
+              printf '%s\n' "${USER_TEAMS[@]}" | jq -R . | jq -s 'map(ascii_downcase)' > /tmp/actor_teams.json
+            fi
+            
           else
             echo "[]">/tmp/actor_teams.json
             echo "No ORG_TOKEN; proceeding with empty team set."
