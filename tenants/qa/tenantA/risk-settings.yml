@@ -13,6 +13,7 @@ bot_detection:
       enabled: true
       threshold: 0.7
 
+
 adaptive_mfa:
   enabled: true
   risk_factors:
