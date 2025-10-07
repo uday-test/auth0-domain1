@@ -82,7 +82,6 @@ jobs:
           sudo mv conftest /usr/local/bin/
           sudo mv yq /usr/local/bin/
           conftest --version
-
       - name: Determine base & head
         id: revs
         shell: bash
@@ -98,7 +97,6 @@ jobs:
           echo "head=$HEAD" >> "$GITHUB_OUTPUT"
           echo "BASE=$BASE"
           echo "HEAD=$HEAD"
-
       - name: Get changed files → files.json
         id: changed
         shell: bash
@@ -108,7 +106,6 @@ jobs:
           echo "Changed files:"; cat /tmp/changed.txt || true
           jq -Rsn '[inputs | split("\n")[] | select(length>0)]' < /tmp/changed.txt > /tmp/files.json
           echo "files.json:"; cat /tmp/files.json
-
       - name: Resolve actor teams (PR author's teams)
         id: teams
         shell: bash
@@ -155,22 +152,22 @@ jobs:
           user_name=$(jq -r '.name // .login' /tmp/user_check.json)
           echo "✅ User verified: $user_name ($PR_AUTHOR)"
           
-          # Extract teams from path-guard.rego
+          # Extract teams from path_guard.rego - FIXED VERSION
           echo ""
-          echo "📋 Step 2: Extracting teams from path-guard.rego..."
+          echo "📋 Step 2: Extracting teams from path_guard.rego..."
           TEAMS_TO_CHECK=()
           
-          if [ -f "base/policies/path-guard.rego" ]; then
-            # Extract teams from team_to_app mapping
-            EXTRACTED_TEAMS=$(grep -A 20 'team_to_app :=' base/policies/path-guard.rego | \
-              grep -E '^\s*"[^"]+":' | \
-              sed 's/.*"\([^"]*\)".*/\1/' | \
+          if [ -f "base/policies/path_guard.rego" ]; then
+            # Extract team KEYS from team_to_app mapping (e.g., "team-app1", "team-app2")
+            EXTRACTED_TEAMS=$(grep -A 20 'team_to_app :=' base/policies/path_guard.rego | \
+              grep -E '^\s*"[^"]+"\s*:' | \
+              sed -E 's/^\s*"([^"]+)"\s*:.*/\1/' | \
               sort -u)
             
             # Extract core_teams
-            CORE_TEAMS=$(grep -A 5 'core_teams :=' base/policies/path-guard.rego | \
+            CORE_TEAMS=$(grep -A 5 'core_teams :=' base/policies/path_guard.rego | \
               grep -E '"[^"]+"' | \
-              sed 's/.*"\([^"]*\)".*/\1/' | \
+              sed -E 's/.*"([^"]+)".*/\1/' | \
               sort -u)
             
             # Combine both
@@ -180,10 +177,10 @@ jobs:
               [ -n "$team" ] && TEAMS_TO_CHECK+=("$team")
             done <<< "$ALL_TEAMS"
             
-            echo "✅ Found ${#TEAMS_TO_CHECK[@]} teams in path-guard.rego:"
+            echo "✅ Found ${#TEAMS_TO_CHECK[@]} teams in path_guard.rego:"
             printf '   - %s\n' "${TEAMS_TO_CHECK[@]}"
           else
-            echo "❌ ERROR: base/policies/path-guard.rego not found"
+            echo "❌ ERROR: base/policies/path_guard.rego not found"
             echo "[]" > /tmp/actor_teams.json
             exit 0
           fi
@@ -233,7 +230,6 @@ jobs:
           echo "Final result:"
           cat /tmp/actor_teams.json
           echo "=========================================="
-
       - name: Build input.json for Path Guard
         id: input
         shell: bash
@@ -245,7 +241,6 @@ jobs:
             --argjson debug false \
             '{debug:$debug, files:$files[0], actor_teams:$teams[0]}' > input.json
           echo "input.json:"; cat input.json
-
       - name: Run Path Guard policy
         shell: bash
         run: |
@@ -254,7 +249,6 @@ jobs:
             --namespace pr.pathguard \
             --policy base/policies \
             "${{ github.workspace }}/input.json"
-
       - name: Upload input.json (artifact)
         if: always()
         uses: actions/upload-artifact@v4
@@ -288,7 +282,6 @@ jobs:
           sudo mv yq /usr/local/bin/
           conftest --version
           yq --version
-
       - name: Check for baseline config changes
         id: check-changes
         shell: bash
@@ -300,7 +293,6 @@ jobs:
             git fetch origin main
             BASE="$(git rev-parse origin/main)"
           fi
-
           if git diff --name-only "$BASE..$HEAD" | grep -E '^base/base-line/(configs|validators)/.*\.ya?ml$' > /dev/null; then
             echo "baseline-changes=true" >> "$GITHUB_OUTPUT"
             echo "Baseline configuration changes detected"
@@ -308,7 +300,6 @@ jobs:
             echo "baseline-changes=false" >> "$GITHUB_OUTPUT"
             echo "No baseline configuration changes detected"
           fi
-
       - name: Merge and validate baseline configs
         if: steps.check-changes.outputs.baseline-changes == 'true'
         shell: bash
@@ -359,14 +350,12 @@ jobs:
             echo "=========================================="
             exit 1
           fi
-
       - name: Skip validation message
         if: steps.check-changes.outputs.baseline-changes == 'false'
         shell: bash
         run: |
           echo "No baseline configuration changes detected in this PR."
           echo "Skipping baseline configuration validation."
-
   # ------------------------------------
   # 4) TENANT-LEVEL CONFIGURATION VALIDATION
   # ------------------------------------
@@ -392,7 +381,6 @@ jobs:
           sudo mv yq /usr/local/bin/
           conftest --version
           yq --version
-
       - name: Check for tenant config changes
         id: check-changes
         shell: bash
@@ -404,7 +392,6 @@ jobs:
             git fetch origin main
             BASE="$(git rev-parse origin/main)"
           fi
-
           if git diff --name-only "$BASE..$HEAD" | grep -E '^tenants/(dev|qa|prod)/tenant.*\.yml$' > /dev/null; then
             echo "tenant-changes=true" >> "$GITHUB_OUTPUT"
             echo "Tenant configuration changes detected"
@@ -412,7 +399,6 @@ jobs:
             echo "tenant-changes=false" >> "$GITHUB_OUTPUT"
             echo "No tenant configuration changes detected"
           fi
-
       - name: Validate tenant configurations
         if: steps.check-changes.outputs.tenant-changes == 'true'
         shell: bash
@@ -479,14 +465,12 @@ jobs:
           else
             echo "All tenant configurations comply with enterprise security standards"
           fi
-
       - name: Skip validation message
         if: steps.check-changes.outputs.tenant-changes == 'false'
         shell: bash
         run: |
           echo "No tenant configuration changes detected in this PR."
           echo "Skipping tenant configuration validation."
-
   # ------------------------------------
   # 5) APP-LEVEL CONFIGURATION VALIDATION
   # ------------------------------------
@@ -512,7 +496,6 @@ jobs:
           sudo mv yq /usr/local/bin/
           conftest --version
           yq --version
-
       - name: Check for app config changes
         id: check-changes
         shell: bash
@@ -524,7 +507,6 @@ jobs:
             git fetch origin main
             BASE="$(git rev-parse origin/main)"
           fi
-
           if git diff --name-only "$BASE..$HEAD" | grep -E '^apps/[^/]+/(tokens|security|orgs)\.yml$' > /dev/null; then
             echo "app-changes=true" >> "$GITHUB_OUTPUT"
             echo "App configuration changes detected"
@@ -532,7 +514,6 @@ jobs:
             echo "app-changes=false" >> "$GITHUB_OUTPUT"
             echo "No app configuration changes detected"
           fi
-
       - name: Validate app configurations
         if: steps.check-changes.outputs.app-changes == 'true'
         shell: bash
@@ -624,14 +605,12 @@ jobs:
           else
             echo "All app configurations comply with standards"
           fi
-
       - name: Skip validation message
         if: steps.check-changes.outputs.app-changes == 'false'
         shell: bash
         run: |
           echo "No app configuration changes detected in this PR."
           echo "Skipping app configuration validation."
-
   # ------------------------------------
   # 6) SHARED-SEC POLICIES (Conftest validation)
   # ------------------------------------

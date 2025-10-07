@@ -140,12 +140,18 @@ deny contains msg if {
 # Define what app teams CAN access (whitelist approach)
 allowed_paths_for_app_teams := {"apps/", "tenants/dev/", "tenants/qa/"}
 
+# Check if a file path is allowed
+path_is_allowed(fp) if {
+  some allowed in allowed_paths_for_app_teams
+  startswith(fp, allowed)
+}
+
 deny contains msg if {
   not core_bypass
   valid_files
   some f in input.files
   fp := norm_path(f)
-  # Check if file starts with any allowed path
-  not some allowed in allowed_paths_for_app_teams; startswith(fp, allowed)
+  # Check if file does NOT start with any allowed path
+  not path_is_allowed(fp)
   msg := sprintf("Access denied: %s (app teams can only access: apps/, tenants/dev/, tenants/qa/)", [f])
 }
