@@ -112,48 +112,127 @@ jobs:
       - name: Resolve actor teams (PR author's teams)
         id: teams
         shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ORG_TOKEN: ${{ secrets.ORG_TOKEN }}
         run: |
-          set -Eeuo pipefail
-          if [ -n "${ORG_TOKEN:-}" ]; then
-            API="https://api.github.com"
-            ORG="${{ github.repository_owner }}"
-            PR_AUTHOR="${{ github.event.pull_request.user.login }}"
-            HDR="Authorization: Bearer $ORG_TOKEN"
-            ACC="Accept: application/vnd.github+json"
-            
-            echo "Fetching teams for PR author: $PR_AUTHOR"
-            
-            # Get all teams in the org
-            ALL_TEAMS=$(curl -sSfL -H "$HDR" -H "$ACC" \
-              "$API/orgs/$ORG/teams?per_page=100" \
-              | jq -r '.[].slug')
-            
-            # Check which teams the PR author belongs to
-            USER_TEAMS=()
-            for team in $ALL_TEAMS; do
-              # Check if user is a member of this team
-              STATUS_CODE=$(curl -sSfL -o /dev/null -w "%{http_code}" \
-                -H "$HDR" -H "$ACC" \
-                "$API/orgs/$ORG/teams/$team/memberships/$PR_AUTHOR")
-              
-              if [ "$STATUS_CODE" = "200" ]; then
-                USER_TEAMS+=("$team")
-                echo "✓ $PR_AUTHOR is in team: $team"
-              fi
-            done
-            
-            # Convert to JSON array
-            if [ ${#USER_TEAMS[@]} -eq 0 ]; then
-              echo "[]" > /tmp/actor_teams.json
-            else
-              printf '%s\n' "${USER_TEAMS[@]}" | jq -R . | jq -s 'map(ascii_downcase)' > /tmp/actor_teams.json
-            fi
-            
-          else
-            echo "[]">/tmp/actor_teams.json
-            echo "No ORG_TOKEN; proceeding with empty team set."
+          set -euo pipefail
+          
+          API="https://api.github.com"
+          ORG="${{ github.repository_owner }}"
+          PR_AUTHOR="${{ github.event.pull_request.user.login }}"
+          
+          echo "=========================================="
+          echo "🔎 Resolving teams for PR author: $PR_AUTHOR"
+          echo "=========================================="
+          
+          # Check if ORG_TOKEN is available
+          if [[ -z "${ORG_TOKEN:-}" ]]; then
+            echo "❌ ERROR: ORG_TOKEN is not set"
+            echo "   Team-based path guards will not work."
+            echo "   Please add ORG_TOKEN secret with 'read:org' permission."
+            echo "[]" > /tmp/actor_teams.json
+            echo "actor_teams:"; cat /tmp/actor_teams.json
+            exit 0
           fi
-          echo "actor_teams:"; cat /tmp/actor_teams.json
+          
+          echo "✅ ORG_TOKEN is available"
+          
+          # Verify PR author exists using GITHUB_TOKEN
+          echo ""
+          echo "📋 Step 1: Verifying PR author exists..."
+          user_check=$(curl -sSL -w "%{http_code}" -o /tmp/user_check.json \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "$API/users/$PR_AUTHOR" 2>/dev/null || echo "000")
+          
+          if [[ "$user_check" != "200" ]]; then
+            echo "❌ ERROR: Could not verify user $PR_AUTHOR (status: $user_check)"
+            echo "[]" > /tmp/actor_teams.json
+            exit 0
+          fi
+          
+          user_name=$(jq -r '.name // .login' /tmp/user_check.json)
+          echo "✅ User verified: $user_name ($PR_AUTHOR)"
+          
+          # Extract teams from path-guard.rego
+          echo ""
+          echo "📋 Step 2: Extracting teams from path-guard.rego..."
+          TEAMS_TO_CHECK=()
+          
+          if [ -f "base/policies/path-guard.rego" ]; then
+            # Extract teams from team_to_app mapping
+            EXTRACTED_TEAMS=$(grep -A 20 'team_to_app :=' base/policies/path-guard.rego | \
+              grep -E '^\s*"[^"]+":' | \
+              sed 's/.*"\([^"]*\)".*/\1/' | \
+              sort -u)
+            
+            # Extract core_teams
+            CORE_TEAMS=$(grep -A 5 'core_teams :=' base/policies/path-guard.rego | \
+              grep -E '"[^"]+"' | \
+              sed 's/.*"\([^"]*\)".*/\1/' | \
+              sort -u)
+            
+            # Combine both
+            ALL_TEAMS=$(echo -e "$EXTRACTED_TEAMS\n$CORE_TEAMS" | grep -v '^$' | sort -u)
+            
+            while IFS= read -r team; do
+              [ -n "$team" ] && TEAMS_TO_CHECK+=("$team")
+            done <<< "$ALL_TEAMS"
+            
+            echo "✅ Found ${#TEAMS_TO_CHECK[@]} teams in path-guard.rego:"
+            printf '   - %s\n' "${TEAMS_TO_CHECK[@]}"
+          else
+            echo "❌ ERROR: base/policies/path-guard.rego not found"
+            echo "[]" > /tmp/actor_teams.json
+            exit 0
+          fi
+          
+          # Check team memberships using ORG_TOKEN
+          echo ""
+          echo "📋 Step 3: Checking team memberships (using ORG_TOKEN)..."
+          USER_TEAMS=()
+          
+          for team in "${TEAMS_TO_CHECK[@]}"; do
+            team_status=$(curl -sSL -o /tmp/${team}.json -w "%{http_code}" \
+              -H "Authorization: Bearer $ORG_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "$API/orgs/$ORG/teams/$team/memberships/$PR_AUTHOR" 2>/dev/null || echo "000")
+            
+            tstate=$(jq -r '.state // empty' /tmp/${team}.json 2>/dev/null || echo "")
+            
+            if [[ "$team_status" == "200" ]]; then
+              if [[ "$tstate" == "active" ]]; then
+                USER_TEAMS+=("$team")
+                echo "   ✅ $team (active)"
+              else
+                echo "   ⚠️  $team (status: $tstate)"
+              fi
+            elif [[ "$team_status" == "404" ]]; then
+              echo "   ⚪ $team (not a member)"
+            else
+              echo "   ❌ $team (HTTP $team_status - API error)"
+              if [[ "$team_status" == "000" ]]; then
+                echo "      ⚠️  Network error or invalid token"
+              fi
+            fi
+          done
+          
+          # Convert to JSON array
+          echo ""
+          if [ ${#USER_TEAMS[@]} -eq 0 ]; then
+            echo "⚠️  No active team memberships found for $PR_AUTHOR"
+            echo "[]" > /tmp/actor_teams.json
+          else
+            printf '%s\n' "${USER_TEAMS[@]}" | jq -R . | jq -s 'map(ascii_downcase)' > /tmp/actor_teams.json
+            echo "✅ Found ${#USER_TEAMS[@]} active team membership(s)"
+          fi
+          
+          echo ""
+          echo "=========================================="
+          echo "Final result:"
+          cat /tmp/actor_teams.json
+          echo "=========================================="
 
       - name: Build input.json for Path Guard
         id: input
