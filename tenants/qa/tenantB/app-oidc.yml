@@ -5,5 +5,5 @@ oidc:
   supported_response_types:
     - "code"
   security:
-    require_https: false
+    require_https: true
     enforce_pkce: true
