@@ -19,6 +19,7 @@ adaptive_mfa:
     - name: "new_device"
       enabled: true
 
+
 geo_security:
   country_restrictions:
     enabled: true
