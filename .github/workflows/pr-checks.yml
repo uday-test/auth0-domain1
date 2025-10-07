@@ -1,3 +1,286 @@
+1759808816537_image.png
+1759808829195_image.png
+
+package pr.pathguard import rego.v1 # -------- helpers -------- norm_path(p) := replace(p, "\\", "/") debug_enabled if { input.debug == true } valid_files if { input.files; is_array(input.files) } valid_actor_teams if { input.actor_teams; is_array(input.actor_teams) } # -------- actor t
+
+pasted
+
+
+Skip to content Navigation Menu uday-test auth0-domain1 Type / to search Code Issues Pull requests 44 Actions Projects Security Insights Settings Back to pull request #87 test cross #108 Jobs Run details Workflow file for this run .github/workflows/pr-checks.yml at 9ad9b7b name
+
+pasted
+
+this is my path-giard.rego     this is my pr0-cehcks see wy error is hitting and rudra1904 is int app-2 team
+
+Looking at your error and the code, I can identify the issue:
+
+The Problem
+The error message shows:
+
+rego_parse_error: unexpected some keyword: illegal negation of 'some'
+not some allowed in allowed_paths_for_app_teams; startswith(fp, allowed)
+This is a syntax error in your Rego policy. The issue is on this line in path_guard.rego:
+
+rego
+not some allowed in allowed_paths_for_app_teams; startswith(fp, allowed)
+Why It's Failing
+In Rego, you cannot use not some directly like this. The negation operator not cannot be applied to a some expression in this way.
+
+The Fix
+Replace the problematic section with this corrected version:
+
+rego
+deny contains msg if {
+  not core_bypass
+  valid_files
+  some f in input.files
+  fp := norm_path(f)
+  # Check if file does NOT start with any allowed path
+  not startswith_any_allowed_path(fp)
+  msg := sprintf("Access denied: %s (app teams can only access: apps/, tenants/dev/, tenants/qa/)", [f])
+}
+
+# Helper function to check if path starts with any allowed path
+startswith_any_allowed_path(fp) if {
+  some allowed in allowed_paths_for_app_teams
+  startswith(fp, allowed)
+}
+Complete Corrected Section
+Replace the last rule in your path_guard.rego with:
+
+rego
+# -------- allowed paths for app teams --------
+# Define what app teams CAN access (whitelist approach)
+allowed_paths_for_app_teams := {"apps/", "tenants/dev/", "tenants/qa/"}
+
+# Helper function to check if path starts with any allowed path
+startswith_any_allowed_path(fp) if {
+  some allowed in allowed_paths_for_app_teams
+  startswith(fp, allowed)
+}
+
+deny contains msg if {
+  not core_bypass
+  valid_files
+  some f in input.files
+  fp := norm_path(f)
+  # Check if file does NOT start with any allowed path
+  not startswith_any_allowed_path(fp)
+  msg := sprintf("Access denied: %s (app teams can only access: apps/, tenants/dev/, tenants/qa/)", [f])
+}
+Why Rudra1904 Got Empty Teams
+From your screenshot, the team resolution shows:
+
+Found 3 teams in path_guard.rego: app1, app2, ciam-core
+But Rudra1904 is not an active member of any of these teams
+Result: actor_teams: []
+This means even though you say Rudra1904 is in app-2 team, the GitHub API check shows they're not an active member. This could be because:
+
+The team name in path_guard.rego doesn't match the actual GitHub team name
+Rudra1904 hasn't accepted the team invitation
+The team membership is "pending" rather than "active"
+After fixing the Rego syntax error, you should also verify the team membership issue.
+
+adn the teams name arare not  app1, app2 reight they are team-app1,team-app2
+
+Exactly! That's another issue. Looking at your path_guard.rego, the team names in the team_to_app mapping are:
+
+rego
+team_to_app := {
+  "team-app1": "app1",
+  "team-app1-reviewers": "app1",
+  "team-app2": "app2",
+  "team-app2-reviewers": "app2",
+}
+But your GitHub Actions workflow is extracting team names incorrectly. Look at this part of the workflow:
+
+bash
+# Extract teams from team_to_app mapping
+EXTRACTED_TEAMS=$(grep -A 20 'team_to_app :=' base/policies/path_guard.rego | \
+  grep -E '^\s*"[^"]+":' | \
+  sed 's/.*"\([^"]*\)".*/\1/' | \
+  sort -u)
+This extracts the keys from team_to_app, which are the correct team names: team-app1, team-app2, etc.
+
+So the workflow should be checking for teams like:
+
+team-app1
+team-app1-reviewers
+team-app2
+team-app2-reviewers
+ciam-core
+The Real Issue
+From your screenshot at line 132-135, it shows:
+
+Found 3 teams in path_guard.rego:
+- app1
+- app2
+- ciam-core
+This means the extraction is wrong - it's getting app1 and app2 instead of team-app1 and team-app2.
+
+Two Fixes Needed
+1. Fix the Rego syntax error (from my previous response)
+
+2. Verify the team extraction is working correctly
+
+The sed command might be extracting the wrong part. Let me provide a better extraction script:
+
+bash
+# Extract teams from team_to_app mapping - get the KEYS (team names)
+EXTRACTED_TEAMS=$(grep -A 20 'team_to_app :=' base/policies/path_guard.rego | \
+  grep -E '^\s*"[^"]+"\s*:' | \
+  sed -E 's/^\s*"([^"]+)"\s*:.*/\1/' | \
+  sort -u)
+Or even better, test what your current script is actually extracting by running it locally on your path_guard.rego file to see why it's getting app1, app2 instead of team-app1, team-app2.
+
+Once both issues are fixed:
+
+The Rego policy will parse correctly
+The workflow will check if Rudra1904 is a member of team-app2 (not just app2)
+modify my rego and give me judpaetd pr-chceks.yml
+
+path_guard.rego (Fixed)
+Code 
+can you use soeme in your reog code ?
+
+path_guard.rego (Fixed)
+Code ∙ Version 2 
+Yes! I've updated the Rego code to use some in a more idiomatic way. The key change is in the last rule:
+
+Old version (with helper function):
+
+rego
+# Helper function to check if path starts with any allowed path
+startswith_any_allowed_path(fp) if {
+  some allowed in allowed_paths_for_app_teams
+  startswith(fp, allowed)
+}
+
+deny contains msg if {
+  not startswith_any_allowed_path(fp)
+  ...
+}
+New version (using some directly):
+
+rego
+deny contains msg if {
+  not core_bypass
+  valid_files
+  some f in input.files
+  fp := norm_path(f)
+  # Check if file does NOT start with any allowed path
+  count({allowed | some allowed in allowed_paths_for_app_teams; startswith(fp, allowed)}) == 0
+  msg := sprintf("Access denied: %s (app teams can only access: apps/, tenants/dev/, tenants/qa/)", [f])
+}
+This approach:
+
+Uses some within a set comprehension to find matching allowed paths
+Counts how many matches exist
+If count is 0, then no allowed path matched, so we deny
+This is more concise and follows Rego best practices by using some directly in the logic rather than creating a separate helper function.
+
+1759809244969_image.png
+but my previosu worfkow throwed error right
+
+You're right! The error is still the same. The issue is that we can't use some inside a set comprehension in that way. Let me fix it properly:
+
+path_guard.rego (Fixed)
+Code ∙ Version 3 
+Now I've fixed it properly! The corrected version:
+
+Creates a helper rule path_is_allowed(fp) that uses some correctly
+Uses negation not path_is_allowed(fp) to check if the path is NOT allowed
+This is the proper Rego pattern. The rule path_is_allowed(fp) will:
+
+Return true if ANY allowed path matches (using some)
+Be undefined (which evaluates to false) if no allowed path matches
+Then not path_is_allowed(fp) will trigger the deny rule when the path doesn't match any allowed paths.
+
+This avoids the "illegal negation of 'some'" error because we're negating the helper rule, not the some keyword directly.
+
+so what doe shis reog deos
+
+Let me explain what this Rego policy does in simple terms:
+
+Path Guard Policy Overview
+This policy acts as a security gatekeeper for Pull Requests, controlling who can modify what files based on their GitHub team membership.
+
+Key Components:
+1. Team-to-App Mapping
+rego
+team_to_app := {
+  "team-app1": "app1",
+  "team-app1-reviewers": "app1",
+  "team-app2": "app2",
+  "team-app2-reviewers": "app2",
+}
+Maps GitHub teams to applications
+Example: Members of team-app2 can only work on app2 files
+2. Core Team Bypass
+rego
+core_teams := {"ciam-core"}
+core_bypass if { some t; actor_team_set[t]; core_teams[t] }
+ciam-core team can access everything
+They bypass all restrictions
+What It Blocks (Deny Rules):
+🚫 1. Wrong App Access
+Access denied: Your team (app: app2) cannot modify files in app: app1
+If you're on team-app2, you can ONLY modify files in apps/app2/
+You CANNOT touch apps/app1/ files
+🚫 2. Multiple Apps in One PR
+Multiple apps touched: [app1, app2]. Limit PR to one app.
+Can't modify multiple apps in a single PR
+Must create separate PRs for each app
+🚫 3. Wrong Environment Access
+Access denied: Only 'dev' environment is allowed. Attempted to access: prod
+Non-core teams can ONLY access tenants/dev/
+Cannot access tenants/qa/ or tenants/prod/
+🚫 4. Production Access
+Prod environment access is not allowed: tenants/prod/config.yml
+Prod is completely blocked for non-core teams
+Even if they try to access it
+🚫 5. Out-of-Scope App Files
+App path out of scope: apps/app1/config.yml (expected apps/app2/)
+If the policy determines you should work on app2, but you touch app1 files
+Enforces staying within your app boundary
+🚫 6. Unauthorized Path Access
+Access denied: base/policies/some-file.yml (app teams can only access: apps/, tenants/dev/, tenants/qa/)
+App teams can ONLY access:
+apps/ (their specific app)
+tenants/dev/
+tenants/qa/
+Cannot touch base/, root files, or other directories
+Example Scenarios:
+✅ Allowed:
+Rudra1904 (member of team-app2) modifies apps/app2/config.yml → PASS
+Rudra1904 modifies tenants/dev/tenant1/settings.yml → PASS
+Core team member modifies anything → PASS (bypass)
+❌ Blocked:
+Rudra1904 modifies apps/app1/config.yml → FAIL (wrong app)
+Rudra1904 modifies tenants/prod/config.yml → FAIL (prod blocked)
+Rudra1904 modifies base/policies/path_guard.rego → FAIL (unauthorized path)
+Rudra1904 modifies both apps/app1/ and apps/app2/ → FAIL (multiple apps)
+How It Determines Your App:
+From files you're modifying: If you modify apps/app2/config.yml, it knows you're working on app2
+From your team membership: If you're in team-app2, your allowed app is app2
+Validation: It checks if the files you're modifying match your team's allowed app
+Summary:
+This policy enforces least privilege access by:
+
+Restricting teams to their own apps
+Preventing production access for app teams
+Limiting where teams can make changes
+Allowing only the core team full access
+It's like a bouncer at a club checking if you're on the list for the right section! 🎫
+
+give me my pr-cehcsk upadte again
+
+pr-checks.yml (Fixed)
+Code ∙ Version 2 
+
+
+
+
 name: PR Checks (Conftest)
 
 on:
@@ -152,22 +435,22 @@ jobs:
           user_name=$(jq -r '.name // .login' /tmp/user_check.json)
           echo "✅ User verified: $user_name ($PR_AUTHOR)"
           
-          # Extract teams from path_guard.rego
+          # Extract teams from path_guard.rego - FIXED VERSION
           echo ""
           echo "📋 Step 2: Extracting teams from path_guard.rego..."
           TEAMS_TO_CHECK=()
           
           if [ -f "base/policies/path_guard.rego" ]; then
-            # Extract teams from team_to_app mapping
+            # Extract team KEYS from team_to_app mapping (e.g., "team-app1", "team-app2")
             EXTRACTED_TEAMS=$(grep -A 20 'team_to_app :=' base/policies/path_guard.rego | \
-              grep -E '^\s*"[^"]+":' | \
-              sed 's/.*"\([^"]*\)".*/\1/' | \
+              grep -E '^\s*"[^"]+"\s*:' | \
+              sed -E 's/^\s*"([^"]+)"\s*:.*/\1/' | \
               sort -u)
             
             # Extract core_teams
             CORE_TEAMS=$(grep -A 5 'core_teams :=' base/policies/path_guard.rego | \
               grep -E '"[^"]+"' | \
-              sed 's/.*"\([^"]*\)".*/\1/' | \
+              sed -E 's/.*"([^"]+)".*/\1/' | \
               sort -u)
             
             # Combine both
@@ -637,6 +920,7 @@ jobs:
           sudo mv yq /usr/local/bin/
           conftest --version
           yq --version
+
       - name: Validate Security Policies for All Apps
         shell: bash
         run: |
@@ -717,6 +1001,7 @@ jobs:
           if [ $FAILED -eq 1 ]; then
             exit 1
           fi
+
       - name: Validate Security Policies for All Tenants
         shell: bash
         run: |
