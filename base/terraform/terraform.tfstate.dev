@@ -1,7 +1,7 @@
 {
   "version": 4,
   "terraform_version": "1.6.0",
-  "serial": 19,
+  "serial": 21,
   "lineage": "619dff94-97dc-017b-0bfe-a16535fbcce8",
   "outputs": {
     "auth0_client": {
@@ -124,16 +124,16 @@
           "schema_version": 0,
           "attributes": {
             "addons": [],
-            "allowed_clients": null,
-            "allowed_logout_urls": null,
-            "allowed_origins": null,
+            "allowed_clients": [],
+            "allowed_logout_urls": [],
+            "allowed_origins": [],
             "app_type": "spa",
             "callbacks": [
               "https://example.com/callback"
             ],
-            "client_aliases": null,
+            "client_aliases": [],
             "client_id": "YKF0UF67osjAvOuoWVR7acIvPilJLuzf",
-            "client_metadata": null,
+            "client_metadata": {},
             "compliance_level": "",
             "cross_origin_auth": false,
             "cross_origin_loc": "",
@@ -161,7 +161,7 @@
               {
                 "alg": "RS256",
                 "lifetime_in_seconds": 300,
-                "scopes": null,
+                "scopes": {},
                 "secret_encoded": true
               }
             ],
@@ -209,7 +209,7 @@
             "sso_disabled": false,
             "token_exchange": [],
             "token_quota": [],
-            "web_origins": null
+            "web_origins": []
           },
           "sensitive_attributes": [],
           "private": "bnVsbA=="
