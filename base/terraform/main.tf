@@ -46,7 +46,7 @@ resource "auth0_client" "app" {
 }
 
 # ===========================================
-# TENANT-LEVEL RESOURCES
+# TENANT-LEVEL RESOURCESd
 # ===========================================
 
 # Branding
