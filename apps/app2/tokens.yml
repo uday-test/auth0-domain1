@@ -5,4 +5,4 @@ jwt_configuration:
 refresh_token:
   rotation_type: "rotating"  # Required per tokens.yaml
   expiration_type: "expiring"  # Required per tokens.yaml
-  token_lifetime: 604800  # Recommended 7 days per tokens.yaml
+  token_lifetime: 604900  # Recommended 7 days per tokens.yaml
