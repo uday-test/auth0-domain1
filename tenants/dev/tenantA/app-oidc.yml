@@ -8,5 +8,5 @@ oidc:
     - "code"
     - "token"
   security:
-    require_https: true
+    require_https: false
     enforce_pkce: false
