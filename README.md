@@ -6,6 +6,9 @@
 ```
 auth0-domain1/
 │
+├── apps/
+│   ├── app1/ (3 YAML files: orgs, security, tokens)
+│   └── app2/ (3 YAML files: orgs, security, tokens)
 ├── base/
 │   ├── base-line/
 │   │   ├── configs/ (4 YAML files: app-oidc, auth-settings, risk-settings, ux-settings)
@@ -37,12 +40,7 @@ auth0-domain1/
 │       ├── policies/
 │       │   └── auth0_validation.rego (Tenant-specific validation rules)
 │       ├── validators/ (4 YAML files: standards for app-oidc, auth-settings, risk-settings, ux-settings)
-│       
-│
-├── apps/
-│   ├── app1/ (3 YAML files: orgs, security, tokens)
-│   └── app2/ (3 YAML files: orgs, security, tokens)
-│
+│ 
 ├── catalogs/ 
 ├── scripts/
 ├── git/
