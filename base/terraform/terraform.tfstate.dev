@@ -1,13 +1,13 @@
 {
   "version": 4,
   "terraform_version": "1.6.0",
-  "serial": 19,
+  "serial": 25,
   "lineage": "619dff94-97dc-017b-0bfe-a16535fbcce8",
   "outputs": {
     "auth0_client": {
       "value": {
         "app_type": "spa",
-        "client_id": "YKF0UF67osjAvOuoWVR7acIvPilJLuzf",
+        "client_id": "W9aoR1pWLt5Pr7o6rOr5E59t3TqR3Y5i",
         "grant_types": [
           "authorization_code",
           "refresh_token"
@@ -31,7 +31,7 @@
     },
     "database_connection": {
       "value": {
-        "id": "con_nujRtfUgYChqWj3U",
+        "id": "con_UPj07gQT8Ntyo2g0",
         "name": "Custom-Username-Password-Authentication"
       },
       "type": [
@@ -132,7 +132,7 @@
               "https://example.com/callback"
             ],
             "client_aliases": null,
-            "client_id": "YKF0UF67osjAvOuoWVR7acIvPilJLuzf",
+            "client_id": "W9aoR1pWLt5Pr7o6rOr5E59t3TqR3Y5i",
             "client_metadata": null,
             "compliance_level": "",
             "cross_origin_auth": false,
@@ -153,7 +153,7 @@
               "authorization_code",
               "refresh_token"
             ],
-            "id": "YKF0UF67osjAvOuoWVR7acIvPilJLuzf",
+            "id": "W9aoR1pWLt5Pr7o6rOr5E59t3TqR3Y5i",
             "initiate_login_uri": "",
             "is_first_party": true,
             "is_token_endpoint_ip_header_trusted": false,
@@ -226,9 +226,9 @@
           "schema_version": 3,
           "attributes": {
             "display_name": "",
-            "id": "con_nujRtfUgYChqWj3U",
+            "id": "con_UPj07gQT8Ntyo2g0",
             "is_domain_connection": false,
-            "metadata": {},
+            "metadata": null,
             "name": "Custom-Username-Password-Authentication",
             "options": [
               {
@@ -238,7 +238,7 @@
                 "app_id": "",
                 "attribute_map": [],
                 "attributes": [],
-                "auth_params": {},
+                "auth_params": null,
                 "authentication_methods": [
                   {
                     "passkey": [
@@ -258,10 +258,10 @@
                 "client_id": "",
                 "client_secret": "",
                 "community_base_url": "",
-                "configuration": {},
+                "configuration": null,
                 "connection_settings": [],
                 "custom_headers": [],
-                "custom_scripts": {},
+                "custom_scripts": null,
                 "debug": false,
                 "decryption_key": [],
                 "digest_algorithm": "",
@@ -331,14 +331,14 @@
                 "password_policy": "good",
                 "ping_federate_base_url": "",
                 "pkce_enabled": false,
-                "precedence": [],
+                "precedence": null,
                 "protocol_binding": "",
                 "provider": "",
                 "realm_fallback": false,
                 "request_template": "",
                 "requires_username": false,
                 "scopes": [],
-                "scripts": {},
+                "scripts": null,
                 "set_user_root_attributes": "",
                 "should_trust_email_verified_connection": "",
                 "sign_in_endpoint": "",
