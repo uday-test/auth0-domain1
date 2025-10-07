@@ -152,22 +152,22 @@ jobs:
           user_name=$(jq -r '.name // .login' /tmp/user_check.json)
           echo "✅ User verified: $user_name ($PR_AUTHOR)"
           
-          # Extract teams from path_guard.rego - FIXED VERSION
+          # Extract teams from path_guard.rego
           echo ""
           echo "📋 Step 2: Extracting teams from path_guard.rego..."
           TEAMS_TO_CHECK=()
           
           if [ -f "base/policies/path_guard.rego" ]; then
-            # Extract team KEYS from team_to_app mapping (e.g., "team-app1", "team-app2")
+            # Extract teams from team_to_app mapping
             EXTRACTED_TEAMS=$(grep -A 20 'team_to_app :=' base/policies/path_guard.rego | \
-              grep -E '^\s*"[^"]+"\s*:' | \
-              sed -E 's/^\s*"([^"]+)"\s*:.*/\1/' | \
+              grep -E '^\s*"[^"]+":' | \
+              sed 's/.*"\([^"]*\)".*/\1/' | \
               sort -u)
             
             # Extract core_teams
             CORE_TEAMS=$(grep -A 5 'core_teams :=' base/policies/path_guard.rego | \
               grep -E '"[^"]+"' | \
-              sed -E 's/.*"([^"]+)".*/\1/' | \
+              sed 's/.*"\([^"]*\)".*/\1/' | \
               sort -u)
             
             # Combine both
@@ -637,7 +637,6 @@ jobs:
           sudo mv yq /usr/local/bin/
           conftest --version
           yq --version
-
       - name: Validate Security Policies for All Apps
         shell: bash
         run: |
@@ -718,7 +717,6 @@ jobs:
           if [ $FAILED -eq 1 ]; then
             exit 1
           fi
-
       - name: Validate Security Policies for All Tenants
         shell: bash
         run: |
