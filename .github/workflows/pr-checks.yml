@@ -155,20 +155,20 @@ jobs:
           user_name=$(jq -r '.name // .login' /tmp/user_check.json)
           echo "✅ User verified: $user_name ($PR_AUTHOR)"
           
-          # Extract teams from path-guard.rego
+          # Extract teams from path_guard.rego
           echo ""
-          echo "📋 Step 2: Extracting teams from path-guard.rego..."
+          echo "📋 Step 2: Extracting teams from path_guard.rego..."
           TEAMS_TO_CHECK=()
           
-          if [ -f "base/policies/path-guard.rego" ]; then
+          if [ -f "base/policies/path_guard.rego" ]; then
             # Extract teams from team_to_app mapping
-            EXTRACTED_TEAMS=$(grep -A 20 'team_to_app :=' base/policies/path-guard.rego | \
+            EXTRACTED_TEAMS=$(grep -A 20 'team_to_app :=' base/policies/path_guard.rego | \
               grep -E '^\s*"[^"]+":' | \
               sed 's/.*"\([^"]*\)".*/\1/' | \
               sort -u)
             
             # Extract core_teams
-            CORE_TEAMS=$(grep -A 5 'core_teams :=' base/policies/path-guard.rego | \
+            CORE_TEAMS=$(grep -A 5 'core_teams :=' base/policies/path_guard.rego | \
               grep -E '"[^"]+"' | \
               sed 's/.*"\([^"]*\)".*/\1/' | \
               sort -u)
@@ -180,10 +180,10 @@ jobs:
               [ -n "$team" ] && TEAMS_TO_CHECK+=("$team")
             done <<< "$ALL_TEAMS"
             
-            echo "✅ Found ${#TEAMS_TO_CHECK[@]} teams in path-guard.rego:"
+            echo "✅ Found ${#TEAMS_TO_CHECK[@]} teams in path_guard.rego:"
             printf '   - %s\n' "${TEAMS_TO_CHECK[@]}"
           else
-            echo "❌ ERROR: base/policies/path-guard.rego not found"
+            echo "❌ ERROR: base/policies/path_guard.rego not found"
             echo "[]" > /tmp/actor_teams.json
             exit 0
           fi
