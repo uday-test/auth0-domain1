@@ -127,19 +127,7 @@ deny contains msg if {
 }
 
 # ========== RISK VALIDATION ==========
-deny contains msg if {
-  env == "dev"
-  input.attack_protection
-  object.get(object.get(input.attack_protection, "brute_force_protection", {}), "enabled", false)
-  msg := "Risk [dev]: Brute force protection must be disabled in dev."
-}
 
-deny contains msg if {
-  env == "dev"
-  input.bot_detection
-  object.get(input.bot_detection, "enabled", false)
-  msg := "Risk [dev]: Bot detection must be disabled in dev."
-}
 
 deny contains msg if {
     input.attack_protection
