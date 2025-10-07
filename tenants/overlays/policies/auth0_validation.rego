@@ -130,7 +130,7 @@ deny contains msg if {
 
 deny contains msg if {
     input.attack_protection
-    env != "dev"
+
     required_bf := data.risk_standards.attack_protection.brute_force_required[env]
     actual_bf := object.get(object.get(input.attack_protection, "brute_force_protection", {}), "enabled", false)
     actual_bf != required_bf
@@ -139,7 +139,7 @@ deny contains msg if {
 
 deny contains msg if {
     input.bot_detection
-    env != "dev"
+    
     required_bot := data.risk_standards.bot_detection_required[env]
     actual_bot := object.get(input.bot_detection, "enabled", false)
     actual_bot != required_bot
