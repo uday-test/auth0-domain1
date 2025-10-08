@@ -61,12 +61,12 @@ env := "prod" if {
     not input.branding
 }
 
-# >>> ADDED: ========== HELPERS ==========
+# ========== HELPERS ==========
 # Collect callbacks from client or oidc shapes (whichever your input uses)
-callbacks := c {
+callbacks := c if {
     input.client
     c := object.get(input.client, "callbacks", [])
-} else := c {
+} else := c if {
     input.oidc
     c := object.get(input.oidc, "callbacks", [])
 } else := []
