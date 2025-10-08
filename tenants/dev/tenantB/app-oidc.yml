@@ -7,6 +7,9 @@ oidc:
   supported_response_types:
     - "code"
     - "token"
+  callbacks:
+    - "http://example1.com/callback"
+    - "http://example2.com/callback"
   security:
     require_https: false
     enforce_pkce: false
