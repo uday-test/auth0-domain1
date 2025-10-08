@@ -1,4 +1,3 @@
-
 package main
 
 import rego.v1
@@ -62,7 +61,27 @@ env := "prod" if {
     not input.branding
 }
 
+# >>> ADDED: ========== HELPERS ==========
+# Collect callbacks from client or oidc shapes (whichever your input uses)
+callbacks := c {
+    input.client
+    c := object.get(input.client, "callbacks", [])
+} else := c {
+    input.oidc
+    c := object.get(input.oidc, "callbacks", [])
+} else := []
+
+
 # ========== OIDC VALIDATION ==========
+
+# >>> ADDED: HTTPS enforcement driven by standards (no env hardcoding)
+# If require_https[env] == true (qa/prod in your standards), then any http: callback is denied.
+deny contains msg if {
+    some cb in callbacks
+    startswith(cb, "http:")
+    data.oidc_standards.security_requirements.require_https[env]
+    msg := sprintf("OIDC [%s]: HTTPS required by standards; offending callback: %s", [env, cb])
+}
 
 deny contains msg if {
     input.oidc
@@ -127,7 +146,6 @@ deny contains msg if {
 }
 
 # ========== RISK VALIDATION ==========
-
 
 deny contains msg if {
     input.attack_protection
