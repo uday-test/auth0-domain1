@@ -3,6 +3,9 @@ oidc:
   supported_grant_types:
     - "authorization_code"
     - "refresh_token"
+  callbacks:
+    - "http://example1.com/callback"
+    - "http://example2.com/callback"  
   supported_response_types:
     - "code"
   security:
