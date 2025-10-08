@@ -1,3 +1,4 @@
+
 oidc:
   issuer: "https://dev-tenanta.auth0.com/"
   supported_grant_types:
