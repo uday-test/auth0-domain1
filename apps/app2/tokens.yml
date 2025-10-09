@@ -1,8 +1,8 @@
 jwt_configuration:
-  lifetime_in_seconds: 1800  # Recommended 30 min per tokens.yaml
+  lifetime_in_seconds: 7200  # Recommended 30 min per tokens.yaml
   alg: "RS256"  # Required per tokens.yaml
   
 refresh_token:
   rotation_type: "rotating"  # Required per tokens.yaml
   expiration_type: "expiring"  # Required per tokens.yaml
-  token_lifetime: 604900  # Recommended 7 days per tokens.yaml
+  token_lifetime: 2592000  # Recommended 7 days per tokens.yaml

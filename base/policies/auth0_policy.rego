@@ -11,7 +11,7 @@ organization_standards := data.organization_standards
 app_tokens := input.tokens
 app_security := input.security
 app_orgs := input.orgs
-app_type := input.app_type
+app_type := input.security.application.app_type
 
 # =============================================================================
 # TOKEN VALIDATION
@@ -184,7 +184,7 @@ deny contains msg if {
 }
 
 # =============================================================================
-# ORGANIZATION VALIDATION
+# ORGANIZATION VALIDATIO
 # =============================================================================
 
 # Validate organization usage
