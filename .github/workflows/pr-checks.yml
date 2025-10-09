@@ -532,7 +532,7 @@ jobs:
 
           for app_dir in apps/*/; do
             [ -d "$app_dir" ] || continue
-            app_name=$(basename "$app_dir")
+            app_name="$(basename "$app_dir")"
             TOTAL_APPS=$((TOTAL_APPS + 1))
 
             echo "Processing: $app_name"
@@ -540,7 +540,7 @@ jobs:
 
             # Required files
             if [ ! -f "${app_dir}/tokens.yml" ] || [ ! -f "${app_dir}/security.yml" ] || [ ! -f "${app_dir}/orgs.yml" ]; then
-              echo "  Missing required YAML files in ${app_dir}"
+              echo "⚠️  Missing required YAML files in ${app_dir}"
               echo "Required files: tokens.yml, security.yml, orgs.yml"
               FAILED_APPS=$((FAILED_APPS + 1))
               VALIDATION_FAILED=true
@@ -549,9 +549,10 @@ jobs:
             fi
 
             # Read app_type from security.yml (authoritative)
-            APP_TYPE="$(yq -r '.application.app_type // empty' "${app_dir}/security.yml" || true)"
+            # NOTE: use // "" (empty string) instead of // empty
+            APP_TYPE="$(yq -r '.application.app_type // ""' "${app_dir}/security.yml" || true)"
             if [ -z "${APP_TYPE}" ]; then
-              echo " app_type missing in ${app_dir}/security.yml"
+              echo "❌ app_type missing in ${app_dir}/security.yml"
               echo "   Add: application.app_type: \"spa\" | \"regular_web\" | \"native\""
               FAILED_APPS=$((FAILED_APPS + 1))
               VALIDATION_FAILED=true
@@ -561,7 +562,7 @@ jobs:
             case "${APP_TYPE}" in
               spa|regular_web|native) ;;
               *)
-                echo " invalid app_type '${APP_TYPE}' in ${app_dir}/security.yml (expected: spa | regular_web | native)"
+                echo "❌ invalid app_type '${APP_TYPE}' in ${app_dir}/security.yml (expected: spa | regular_web | native)"
                 FAILED_APPS=$((FAILED_APPS + 1))
                 VALIDATION_FAILED=true
                 echo ""
@@ -570,49 +571,47 @@ jobs:
             esac
             echo "App type (from security.yml): ${APP_TYPE}"
 
-            # Create combined config (no app_type header needed)
-            OUTPUT_FILE="${app_dir}/${app_name}-combined.yml"
-            cat > "${OUTPUT_FILE}" <<EOF
-          tokens:
-          $(yq eval '.' "${app_dir}/tokens.yml" | sed 's/^/  /')
-          security:
-          $(yq eval '.' "${app_dir}/security.yml" | sed 's/^/  /')
-          orgs:
-          $(yq eval '.' "${app_dir}/orgs.yml" | sed 's/^/  /')
-          EOF
-                echo "✓ Created ${OUTPUT_FILE}"
+            # Build combined YAML (no heredoc to avoid indentation issues)
+            OUTPUT_FILE="${app_dir%/}/${app_name}-combined.yml"
+            {
+              echo "tokens:"
+              yq eval '.' "${app_dir}/tokens.yml" | sed 's/^/  /'
+              echo "security:"
+              yq eval '.' "${app_dir}/security.yml" | sed 's/^/  /'
+              echo "orgs:"
+              yq eval '.' "${app_dir}/orgs.yml" | sed 's/^/  /'
+            } > "${OUTPUT_FILE}"
+            echo "✓ Created ${OUTPUT_FILE}"
 
-                # Validate with Conftest
-                echo "Validating ${app_name}..."
-                if conftest test \
-                    --policy base/policies/ \
-                    --data base/tenants-common \
-                    "${OUTPUT_FILE}"; then
-                  PASSED_APPS=$((PASSED_APPS + 1))
-                  echo " PASS: $app_name"
-                else
-                  FAILED_APPS=$((FAILED_APPS + 1))
-                  echo " FAIL: $app_name"
-                  VALIDATION_FAILED=true
-                fi
+            # Validate with Conftest
+            echo "Validating ${app_name}..."
+            if conftest test --policy base/policies/ --data base/tenants-common "${OUTPUT_FILE}" --output table; then
+              PASSED_APPS=$((PASSED_APPS + 1))
+              echo "✅ PASS: ${app_name}"
+            else
+              FAILED_APPS=$((FAILED_APPS + 1))
+              echo "❌ FAIL: ${app_name}"
+              VALIDATION_FAILED=true
+            fi
 
-                echo ""
-              done
+            echo ""
+          done
 
-              echo "=========================================="
-              echo "Validation Summary"
-              echo "=========================================="
-              echo "Total Apps:   $TOTAL_APPS"
-              echo "Passed:       $PASSED_APPS"
-              echo "Failed:       $FAILED_APPS"
-              echo "=========================================="
+          echo "=========================================="
+          echo "Validation Summary"
+          echo "=========================================="
+          echo "Total Apps:   ${TOTAL_APPS}"
+          echo "Passed:       ${PASSED_APPS}"
+          echo "Failed:       ${FAILED_APPS}"
+          echo "=========================================="
 
-              if [ "$VALIDATION_FAILED" = true ]; then
-                echo "One or more app validations failed"
-                exit 1
-              else
-                echo "All app configurations comply with standards"
-              fi
+          if [ "${VALIDATION_FAILED}" = true ]; then
+            echo "One or more app validations failed"
+            exit 1
+          else
+            echo "All app configurations comply with standards"
+          fi
+
 
       - name: Skip validation message
         if: steps.check-changes.outputs.app-changes == 'false'
