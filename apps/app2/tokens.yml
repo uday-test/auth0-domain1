@@ -3,6 +3,6 @@ jwt_configuration:
   alg: "RS256"  # Required per tokens.yaml
   
 refresh_token:
-  rotation_type: "rotating"  # Required per tokens.yaml
+  rotation_type: "rotating"  # Required per tokens.yml
   expiration_type: "expiring"  # Required per tokens.yaml
   token_lifetime: 2592000  # Recommended 7 days per tokens.yaml
