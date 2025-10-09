@@ -9,7 +9,7 @@ grant_types:
 response_types:
   - "code"
   
-token_endpoint_auth_method: "none"  # Confidential client per security.yaml
+token_endpoint_auth_method: "none"  # Confidential client per security.yml
   
 cross_origin_auth: false  # Required for regular_web per security.yaml
 oidc_conformant: true  # Required per security.yaml
