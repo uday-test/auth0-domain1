@@ -4,6 +4,9 @@ oidc:
     - "authorization_code"
   supported_response_types:
     - "code"
+  callbacks:
+    - "https://example1.com/callback"
+    - "https://example2.com/callback"
   security:
     require_https: true
     enforce_pkce: true
