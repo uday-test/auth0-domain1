@@ -17,14 +17,15 @@ deny contains msg if {
 
 # ========== OIDC VALIDATION ==========
 
-# >>> ADDED: HTTPS
+# OIDC VALIDATION – HTTPS enforcement (env-driven)
 deny contains msg if {
-  cb := callbacks[_]                                      # <-- explicit binding
+  cbs := callbacks                 # bind first to make the compiler happy
+  some i                           # explicit index variable (avoid `_`)
+  cb := cbs[i]                     # now cb is safely bound
   startswith(cb, "http:")
   data.oidc_standards.security_requirements.require_https[env]
   msg := sprintf("OIDC [%s]: HTTPS required by standards; offending callback: %s", [env, cb])
 }
-
 
 deny contains msg if {
     input.oidc
