@@ -9,7 +9,7 @@ env := lower(input.env) if { input.env }
 env := "prod" if { not input.env }  # optional default/guard
 deny contains msg if {
   input.env
-  lower(input.env) not in {"dev","qa","prod"}
+  not lower(input.env) in {"dev","qa","prod"}
   msg := sprintf("Invalid env '%s' passed from workflow. Allowed: dev, qa, prod.", [input.env])
 }
 
