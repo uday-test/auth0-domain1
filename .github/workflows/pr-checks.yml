@@ -399,72 +399,91 @@ jobs:
             echo "tenant-changes=false" >> "$GITHUB_OUTPUT"
             echo "No tenant configuration changes detected"
           fi
-      - name: Validate tenant configurations
+      - name: Validate tenant configurations (only changed)
         if: steps.check-changes.outputs.tenant-changes == 'true'
         shell: bash
         run: |
           set -Eeuo pipefail
-          cd tenants
-          
-          ENVIRONMENTS=("dev" "qa" "prod")
+
+          BASE="${{ github.event.pull_request.base.sha || '' }}"
+          HEAD="${{ github.event.pull_request.head.sha || github.sha }}"
+          if [ -z "$BASE" ]; then
+            git fetch origin main
+            BASE="$(git rev-parse origin/main)"
+          fi
+
+          echo "Finding changed tenant files..."
+          CHANGED_FILES="$(git diff --name-only "$BASE..$HEAD" | grep -E '^tenants/(dev|qa|prod)/tenant[^/]+/.*\.yml$' || true)"
+
+          if [ -z "$CHANGED_FILES" ]; then
+            echo "No specific tenant YAML changes found. Nothing to validate."
+            exit 0
+          fi
+
+          echo "Changed files:"
+          echo "$CHANGED_FILES"
+
+          # Build unique list of "<env> <tenant>" pairs, e.g. "dev tenantA"
+          mapfile -t CHANGED_PAIRS < <(echo "$CHANGED_FILES" | awk -F'/' '{print $2" "$3}' | sort -u)
+
+          echo "Changed env/tenant pairs:"
+          printf '%s\n' "${CHANGED_PAIRS[@]}"
+
           VALIDATION_FAILED=false
-          
-          for ENV in "${ENVIRONMENTS[@]}"; do
-            echo "Merging configs for environment: $ENV"
-            
-            # Clean up any existing merged files
-            rm -f ${ENV}-tenant*-combined.yml
-            
-            if [ ! -d "$ENV" ]; then
-              echo "Warning: Environment directory '$ENV' not found, skipping..."
+
+          for pair in "${CHANGED_PAIRS[@]}"; do
+            ENV="$(echo "$pair" | awk '{print $1}')"
+            TENANT="$(echo "$pair" | awk '{print $2}')"
+
+            TENANT_DIR="tenants/${ENV}/${TENANT}"
+            MERGED_YML="${ENV}-${TENANT}-combined.yml"
+            INPUT_JSON="${ENV}-${TENANT}-input.json"
+
+            echo ""
+            echo "=== Processing ${ENV}/${TENANT} ==="
+            if [ ! -d "$TENANT_DIR" ]; then
+              echo "Directory ${TENANT_DIR} not found, skipping..."
               continue
             fi
-            
-            # Loop through all tenant directories
-            for tenant_dir in ${ENV}/tenant*/; do
-              if [ -d "$tenant_dir" ]; then
-                tenant_name=$(basename "$tenant_dir")
-                echo "Processing $tenant_name..."
-                
-                # Check if YAML files exist
-                if ls ${tenant_dir}/*.yml 1> /dev/null 2>&1; then
-                  # Merge all YAML files for this tenant
-                  yq eval-all '. as $item ireduce ({}; . * $item)' \
-                    ${tenant_dir}/*.yml \
-                    > ${ENV}-${tenant_name}-combined.yml
-                  
-                  echo "✓ Created ${ENV}-${tenant_name}-combined.yml"
-                else
-                  echo "⚠ No YAML files found in $tenant_dir"
-                fi
-              fi
-            done
-            
-            # Check if we have any merged files to validate
-            if ls ${ENV}-tenant*-combined.yml 1> /dev/null 2>&1; then
-              echo ""
-              echo "Running conftest validation for $ENV..."
-              
-              if conftest test --policy overlays/policies/ --data overlays/validators/ ${ENV}-tenant*-combined.yml; then
-                echo " $ENV environment validation PASSED"
-              else
-                echo " $ENV environment validation FAILED"
-                VALIDATION_FAILED=true
-              fi
-            else
-              echo "No merged files found for $ENV environment"
+
+            if ! ls "${TENANT_DIR}"/*.yml >/dev/null 2>&1; then
+              echo "No YAML files in ${TENANT_DIR}, skipping..."
+              continue
             fi
-            
-            # Clean up
-            rm -f ${ENV}-tenant*-combined.yml
+
+            # Merge that tenant's YAMLs
+            yq eval-all '. as $item ireduce ({}; . * $item)' \
+              "${TENANT_DIR}"/*.yml > "${MERGED_YML}"
+            echo "✓ Created ${MERGED_YML}"
+
+            # Convert to JSON and inject env for Rego (input.env)
+            yq -o=json "${MERGED_YML}" | jq --arg env "$ENV" '. + {env: $env}' > "${INPUT_JSON}"
+            echo "✓ Created ${INPUT_JSON} (with env=${ENV})"
+
+            echo "Running conftest for ${ENV}/${TENANT}..."
+            if conftest test "${INPUT_JSON}" \
+                -p overlays/policies \
+                --input json \
+                --data overlays/validators \
+                --data base/base-line/standards \
+                -o table; then
+              echo "✅ ${ENV}/${TENANT} validation PASSED"
+            else
+              echo "❌ ${ENV}/${TENANT} validation FAILED"
+              VALIDATION_FAILED=true
+            fi
+
+            # Clean up generated files for this tenant
+            rm -f "${MERGED_YML}" "${INPUT_JSON}"
           done
-          
+
           if [ "$VALIDATION_FAILED" = true ]; then
-            echo "One or more environment validations failed"
+            echo "One or more tenant validations failed"
             exit 1
           else
-            echo "All tenant configurations comply with enterprise security standards"
+            echo "All changed tenants comply with enterprise security standards"
           fi
+
       - name: Skip validation message
         if: steps.check-changes.outputs.tenant-changes == 'false'
         shell: bash

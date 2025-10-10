@@ -2,80 +2,24 @@ package main
 
 import rego.v1
 
-# ========== ENVIRONMENT DETECTION ==========
-
-# Detect environment from OIDC issuer URL pattern
-env := "dev" if {
-    input.oidc
-    contains(input.oidc.issuer, "dev-")
+# ========== ENVIRONMENT (from workflow) ==========
+# Expect the workflow to inject: {"env":"dev|qa|prod"} in the input JSON.
+env := lower(input.env) if {
+  input.env
 }
 
-env := "qa" if {
-    input.oidc
-    contains(input.oidc.issuer, "qa-")
-}
 
-env := "prod" if {
-    input.oidc
-    not contains(input.oidc.issuer, "dev-")
-    not contains(input.oidc.issuer, "qa-")
+# (Optional) guardrail: fail fast on bad env values
+deny contains msg if {
+  input.env
+  lower(input.env) not in {"dev","qa","prod"}
+  msg := sprintf("Invalid env '%s' passed from workflow. Allowed: dev, qa, prod.", [input.env])
 }
-
-# Detect QA from security origins for auth files
-env := "qa" if {
-    not input.oidc
-    input.security
-    input.security.allowed_origins
-    some origin in input.security.allowed_origins
-    contains(origin, "qa-")
-}
-
-# Detect dev from security origins for auth files  
-env := "dev" if {
-    not input.oidc
-    input.security
-    input.security.allowed_origins
-    some origin in input.security.allowed_origins
-    contains(origin, "localhost")
-}
-
-# Detect from branding URLs
-env := "qa" if {
-    not input.oidc
-    not input.security
-    input.branding
-    contains(input.branding.logo_url, "/qa/")
-}
-
-env := "dev" if {
-    not input.oidc
-    not input.security
-    input.branding
-    contains(input.branding.logo_url, "/dev/")
-}
-
-# Default to prod
-env := "prod" if {
-    not input.oidc
-    not input.security
-    not input.branding
-}
-
-# ========== HELPERS ==========
-# Collect callbacks from client or oidc shapes (whichever your input uses)
-callbacks := c if {
-    input.client
-    c := object.get(input.client, "callbacks", [])
-} else := c if {
-    input.oidc
-    c := object.get(input.oidc, "callbacks", [])
-} else := []
 
 
 # ========== OIDC VALIDATION ==========
 
-# >>> ADDED: HTTPS enforcement driven by standards (no env hardcoding)
-# If require_https[env] == true (qa/prod in your standards), then any http: callback is denied.
+# >>> ADDED: HTTPS
 deny contains msg if {
     some cb in callbacks
     startswith(cb, "http:")
