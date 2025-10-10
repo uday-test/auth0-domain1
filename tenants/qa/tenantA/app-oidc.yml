@@ -7,6 +7,7 @@ oidc:
   callbacks:
     - "https://example1.com/callback"
     - "https://example2.com/callback"
+    
   security:
     require_https: true
     enforce_pkce: true
