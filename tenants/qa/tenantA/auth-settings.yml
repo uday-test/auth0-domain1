@@ -9,7 +9,6 @@ connections:
         require_numbers: true
         require_symbols: true
       brute_force_protection: true
-
 guardian:
   enabled: true
   factors:
