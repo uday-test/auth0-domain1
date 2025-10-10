@@ -414,18 +414,16 @@ jobs:
 
           echo "Finding changed tenant files..."
           CHANGED_FILES="$(git diff --name-only "$BASE..$HEAD" | grep -E '^tenants/(dev|qa|prod)/tenant[^/]+/.*\.yml$' || true)"
-
           if [ -z "$CHANGED_FILES" ]; then
-            echo "No specific tenant YAML changes found. Nothing to validate."
+            echo "No tenant YAML changes found. Nothing to validate."
             exit 0
           fi
 
           echo "Changed files:"
           echo "$CHANGED_FILES"
 
-          # Build unique list of "<env> <tenant>" pairs, e.g. "dev tenantA"
+          # Build unique "<env> <tenant>" pairs: e.g., "dev tenantA"
           mapfile -t CHANGED_PAIRS < <(echo "$CHANGED_FILES" | awk -F'/' '{print $2" "$3}' | sort -u)
-
           echo "Changed env/tenant pairs:"
           printf '%s\n' "${CHANGED_PAIRS[@]}"
 
@@ -437,10 +435,10 @@ jobs:
 
             TENANT_DIR="tenants/${ENV}/${TENANT}"
             MERGED_YML="${ENV}-${TENANT}-combined.yml"
-            INPUT_JSON="${ENV}-${TENANT}-input.json"
 
             echo ""
             echo "=== Processing ${ENV}/${TENANT} ==="
+
             if [ ! -d "$TENANT_DIR" ]; then
               echo "Directory ${TENANT_DIR} not found, skipping..."
               continue
@@ -451,30 +449,29 @@ jobs:
               continue
             fi
 
-            # Merge that tenant's YAMLs
-            yq eval-all '. as $item ireduce ({}; . * $item)' \
-              "${TENANT_DIR}"/*.yml > "${MERGED_YML}"
+            # Merge all YAMLs for this tenant
+            yq eval-all '. as $item ireduce ({}; . * $item)' "${TENANT_DIR}"/*.yml > "${MERGED_YML}"
             echo "✓ Created ${MERGED_YML}"
 
-            # Convert to JSON and inject env for Rego (input.env)
-            yq -o=json "${MERGED_YML}" | jq --arg env "$ENV" '. + {env: $env}' > "${INPUT_JSON}"
-            echo "✓ Created ${INPUT_JSON} (with env=${ENV})"
+            # Inject env so Rego can read input.env
+            yq -i ".env = \"${ENV}\"" "${MERGED_YML}"
+            echo "✓ Injected env=${ENV} into ${MERGED_YML}"
 
             echo "Running conftest for ${ENV}/${TENANT}..."
-            if conftest test "${INPUT_JSON}" \
-                -p overlays/policies \
-                --input json \
-                --data overlays/validators \
-                --data base/base-line/standards \
-                -o table; then
-              echo "✅ ${ENV}/${TENANT} validation PASSED"
+            # Flags BEFORE file; only overlay data loaded
+            if conftest test \
+                  -p overlays/policies/ \
+                  --data overlays/validators/ \
+                  -o table \
+                  "${MERGED_YML}"; then
+              echo " ${ENV}/${TENANT} validation PASSED"
             else
-              echo "❌ ${ENV}/${TENANT} validation FAILED"
+              echo " ${ENV}/${TENANT} validation FAILED"
               VALIDATION_FAILED=true
             fi
 
-            # Clean up generated files for this tenant
-            rm -f "${MERGED_YML}" "${INPUT_JSON}"
+            # Cleanup artifact (optional)
+            rm -f "${MERGED_YML}"
           done
 
           if [ "$VALIDATION_FAILED" = true ]; then
@@ -483,6 +480,7 @@ jobs:
           else
             echo "All changed tenants comply with enterprise security standards"
           fi
+
 
       - name: Skip validation message
         if: steps.check-changes.outputs.tenant-changes == 'false'

@@ -4,17 +4,15 @@ import rego.v1
 
 # ========== ENVIRONMENT (from workflow) ==========
 # Expect the workflow to inject: {"env":"dev|qa|prod"} in the input JSON.
-env := lower(input.env) if {
-  input.env
-}
-
-
-# (Optional) guardrail: fail fast on bad env values
+# Expect the workflow to inject: env: dev|qa|prod
+env := lower(input.env) if { input.env }
+env := "prod" if { not input.env }  # optional default/guard
 deny contains msg if {
   input.env
   lower(input.env) not in {"dev","qa","prod"}
   msg := sprintf("Invalid env '%s' passed from workflow. Allowed: dev, qa, prod.", [input.env])
 }
+
 
 
 # ========== OIDC VALIDATION ==========
