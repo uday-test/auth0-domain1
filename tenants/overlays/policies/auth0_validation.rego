@@ -2,11 +2,14 @@ package main
 
 import rego.v1
 
+
+
+
+
 # ========== ENVIRONMENT (from workflow) ==========
-# Expect the workflow to inject: {"env":"dev|qa|prod"} in the input JSON.
 # Expect the workflow to inject: env: dev|qa|prod
+
 env := lower(input.env) if { input.env }
-env := "prod" if { not input.env }  # optional default/guard
 deny contains msg if {
   input.env
   not lower(input.env) in {"dev","qa","prod"}
