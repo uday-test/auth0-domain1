@@ -460,8 +460,8 @@ jobs:
             echo "Running conftest for ${ENV}/${TENANT}..."
             # Flags BEFORE file; only overlay data loaded
             if conftest test \
-                  -p overlays/policies/ \
-                  --data overlays/validators/ \
+                  -p tenants/overlays/policies/ \
+                  --data tenants/overlays/validators/ \
                   -o table \
                   "${MERGED_YML}"; then
               echo " ${ENV}/${TENANT} validation PASSED"
