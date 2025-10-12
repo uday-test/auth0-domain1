@@ -462,7 +462,6 @@ jobs:
             if conftest test \
                   -p tenants/overlays/policies/ \
                   --data tenants/overlays/validators/ \
-                  -o table \
                   "${MERGED_YML}"; then
               echo " ${ENV}/${TENANT} validation PASSED"
             else
@@ -639,6 +638,9 @@ jobs:
   # ------------------------------------
   # 6) SHARED-SEC POLICIES (Conftest validation)
   # ------------------------------------
+  # ------------------------------------
+  # 6) SHARED-SEC POLICIES (Conftest validation) - OPTIMIZED
+  # ------------------------------------
   shared-sec-policies:
     name: Shared-Sec Policies (Conftest)
     runs-on: ubuntu-latest
@@ -663,13 +665,66 @@ jobs:
           conftest --version
           yq --version
 
-      - name: Validate Security Policies for All Apps
+      - name: Check for changes
+        id: check-changes
         shell: bash
         run: |
           set -Eeuo pipefail
           
+          BASE="${{ github.event.pull_request.base.sha || '' }}"
+          HEAD="${{ github.event.pull_request.head.sha || github.sha }}"
+          
+          if [ -z "$BASE" ]; then
+            git fetch origin main
+            BASE="$(git rev-parse origin/main)"
+          fi
+          
+          # Get all changed files
+          CHANGED_FILES=$(git diff --name-only "$BASE..$HEAD")
+          
+          echo "Changed files:"
+          echo "$CHANGED_FILES"
+          echo ""
+          
+          # Check if shared-sec policy or data files changed
+          POLICY_CHANGED=false
+          if echo "$CHANGED_FILES" | grep -qE '^overlays/policies/shared_sec\.rego$|^overlays/shared-sec/'; then
+            POLICY_CHANGED=true
+            echo "Policy or shared-sec data files changed - will validate ALL apps and tenants"
+          fi
+          
+          # Detect changed apps
+          APP_CHANGES=false
+          CHANGED_APPS=""
+          if echo "$CHANGED_FILES" | grep -qE '^apps/[^/]+/(tokens|security|orgs)\.yml$'; then
+            APP_CHANGES=true
+            CHANGED_APPS=$(echo "$CHANGED_FILES" | grep -E '^apps/[^/]+/' | cut -d'/' -f2 | sort -u | tr '\n' ' ')
+            echo "App changes detected: $CHANGED_APPS"
+          fi
+          
+          # Detect changed tenants
+          TENANT_CHANGES=false
+          if echo "$CHANGED_FILES" | grep -qE '^tenants/(dev|qa|prod)/tenant.*\.yml$'; then
+            TENANT_CHANGES=true
+            echo "Tenant configuration changes detected"
+          fi
+          
+          echo "policy-changed=$POLICY_CHANGED" >> "$GITHUB_OUTPUT"
+          echo "app-changes=$APP_CHANGES" >> "$GITHUB_OUTPUT"
+          echo "changed-apps=$CHANGED_APPS" >> "$GITHUB_OUTPUT"
+          echo "tenant-changes=$TENANT_CHANGES" >> "$GITHUB_OUTPUT"
+
+      - name: Validate Security Policies for Apps
+        if: steps.check-changes.outputs.app-changes == 'true' || steps.check-changes.outputs.policy-changed == 'true'
+        shell: bash
+        env:
+          POLICY_CHANGED: ${{ steps.check-changes.outputs.policy-changed }}
+          CHANGED_APPS: ${{ steps.check-changes.outputs.changed-apps }}
+        run: |
+          set -Eeuo pipefail
+          
           echo "=========================================="
-          echo "Validating Security Policies for All Apps"
+          echo "Validating Security Policies for Apps"
           echo "=========================================="
           echo ""
           
@@ -677,59 +732,109 @@ jobs:
           TOTAL_APPS=0
           PASSED_APPS=0
           
-          # Loop through all apps and create combined files
-          for app_dir in apps/*/; do
-            if [ -d "$app_dir" ]; then
-              app_name=$(basename "$app_dir")
-              TOTAL_APPS=$((TOTAL_APPS + 1))
+          # Determine which apps to validate
+          if [ "$POLICY_CHANGED" = "true" ]; then
+            echo "Policy files changed - validating ALL apps"
+            echo ""
+            APP_LIST=$(find apps -maxdepth 1 -mindepth 1 -type d -exec basename {} \;)
+          else
+            echo "Validating only changed apps: $CHANGED_APPS"
+            echo ""
+            APP_LIST="$CHANGED_APPS"
+          fi
+          
+          # Exit successfully if no apps to validate
+          if [ -z "$APP_LIST" ]; then
+            echo "No apps to validate"
+            exit 0
+          fi
+          
+          # Loop through apps
+          for app_name in $APP_LIST; do
+            app_dir="apps/${app_name}"
+            
+            if [ ! -d "$app_dir" ]; then
+              echo "Warning: Directory $app_dir not found, skipping..."
+              continue
+            fi
+            
+            TOTAL_APPS=$((TOTAL_APPS + 1))
+            
+            echo "Processing app: $app_name"
+            echo "----------------------------------------"
+            
+            # Check if required files exist
+            if [ ! -f "${app_dir}/tokens.yml" ] || [ ! -f "${app_dir}/security.yml" ] || [ ! -f "${app_dir}/orgs.yml" ]; then
+              echo "  Missing required YAML files, skipping..."
+              echo "  Required files: tokens.yml, security.yml, orgs.yml"
+              echo ""
+              continue
+            fi
+            
+            # Read app_type from security.yml (authoritative source)
+            APP_TYPE="$(yq -r '.application.app_type // ""' "${app_dir}/security.yml" || true)"
+            
+            if [ -z "${APP_TYPE}" ]; then
+              echo "  app_type missing in ${app_dir}/security.yml"
+              echo "  Using fallback detection based on app name..."
               
-              echo "Processing app: $app_name"
-              echo "----------------------------------------"
-              
-              # Determine app type
-              APP_TYPE="spa"
+              # Fallback: Determine app type based on naming convention
               if [[ "$app_name" == *"app2"* ]] || [[ "$app_name" == *"web"* ]]; then
                 APP_TYPE="regular_web"
               elif [[ "$app_name" == *"mobile"* ]] || [[ "$app_name" == *"native"* ]]; then
                 APP_TYPE="native"
-              fi
-              
-              # Check if required files exist
-              if [ ! -f "${app_dir}/tokens.yml" ] || [ ! -f "${app_dir}/security.yml" ] || [ ! -f "${app_dir}/orgs.yml" ]; then
-                echo "  Missing required YAML files, skipping..."
-                continue
-              fi
-              
-              # Create combined config
-              OUTPUT_FILE="${app_dir}/${app_name}-combined.yml"
-              
-              cat > ${OUTPUT_FILE} <<EOF
-          app_type: "${APP_TYPE}"
-          tokens:
-          $(yq eval '.' ${app_dir}/tokens.yml | sed 's/^/  /')
-          security:
-          $(yq eval '.' ${app_dir}/security.yml | sed 's/^/  /')
-          orgs:
-          $(yq eval '.' ${app_dir}/orgs.yml | sed 's/^/  /')
-          EOF
-              
-              echo "✓ Created ${OUTPUT_FILE}"
-              
-              # Run shared-sec validation
-              echo "Validating security policies..."
-              if conftest test \
-                --policy overlays/policies/shared_sec.rego \
-                --data overlays/shared-sec/identity_access.yml \
-                ${OUTPUT_FILE}; then
-                PASSED_APPS=$((PASSED_APPS + 1))
-                echo " PASSED: $app_name"
               else
-                echo " FAILED: $app_name violates security policy"
-                FAILED=1
+                APP_TYPE="spa"
               fi
-              
-              echo ""
             fi
+            
+            # Validate app_type value
+            case "${APP_TYPE}" in
+              spa|regular_web|native)
+                echo "App type: ${APP_TYPE}"
+                ;;
+              *)
+                echo "  Invalid app_type '${APP_TYPE}' (expected: spa | regular_web | native)"
+                echo "  Skipping validation..."
+                echo ""
+                continue
+                ;;
+            esac
+            
+            # Create combined config
+            OUTPUT_FILE="${app_dir}/${app_name}-combined.yml"
+            
+            {
+              echo "tokens:"
+              yq eval '.' "${app_dir}/tokens.yml" | sed 's/^/  /'
+              echo "security:"
+              yq eval '.' "${app_dir}/security.yml" | sed 's/^/  /'
+              echo "orgs:"
+              yq eval '.' "${app_dir}/orgs.yml" | sed 's/^/  /'
+            } > "${OUTPUT_FILE}"
+            
+            echo "✓ Created ${OUTPUT_FILE}"
+            
+            # Inject app_type so Rego can read input.app_type
+            yq -i ".app_type = \"${APP_TYPE}\"" "${OUTPUT_FILE}"
+            echo "✓ Injected app_type=${APP_TYPE} into ${OUTPUT_FILE}"
+            
+            # Run shared-sec validation
+            echo "Validating security policies..."
+            if conftest test \
+              --policy overlays/policies/shared_sec.rego \
+              --data overlays/shared-sec/identity_access.yml \
+              "${OUTPUT_FILE}"; then
+              PASSED_APPS=$((PASSED_APPS + 1))
+              echo "✓ PASSED: $app_name"
+            else
+              echo "✗ FAILED: $app_name violates security policy"
+              FAILED=1
+            fi
+            
+            # Cleanup artifact
+            rm -f "${OUTPUT_FILE}"
+            echo ""
           done
           
           echo "=========================================="
@@ -741,76 +846,137 @@ jobs:
           echo "=========================================="
           
           if [ $FAILED -eq 1 ]; then
+            echo "One or more apps failed security validation"
             exit 1
+          else
+            echo "All apps passed security validation"
           fi
 
-      - name: Validate Security Policies for All Tenants
+      - name: Skip app validation message
+        if: steps.check-changes.outputs.app-changes == 'false' && steps.check-changes.outputs.policy-changed == 'false'
         shell: bash
+        run: |
+          echo "No app configuration changes detected in this PR."
+          echo "Skipping app security validation."
+
+      - name: Validate Security Policies for Tenants
+        if: steps.check-changes.outputs.tenant-changes == 'true' || steps.check-changes.outputs.policy-changed == 'true'
+        shell: bash
+        env:
+          POLICY_CHANGED: ${{ steps.check-changes.outputs.policy-changed }}
         run: |
           set -Eeuo pipefail
           
+          BASE="${{ github.event.pull_request.base.sha || '' }}"
+          HEAD="${{ github.event.pull_request.head.sha || github.sha }}"
+          
+          if [ -z "$BASE" ]; then
+            git fetch origin main
+            BASE="$(git rev-parse origin/main)"
+          fi
+          
           echo "=========================================="
-          echo "Validating Security Policies for All Tenants"
+          echo "Validating Security Policies for Tenants"
           echo "=========================================="
           echo ""
           
-          cd tenants
           FAILED=0
           TOTAL_TENANTS=0
           PASSED_TENANTS=0
-          ENVIRONMENTS=("dev" "qa" "prod")
           
-          # Loop through all environments
-          for ENV in "${ENVIRONMENTS[@]}"; do
-            if [ ! -d "$ENV" ]; then
-              echo "Warning: Environment directory '$ENV' not found, skipping..."
+          # Determine validation scope
+          if [ "$POLICY_CHANGED" = "true" ]; then
+            echo "Policy files changed - validating ALL tenants"
+            echo ""
+            VALIDATE_ALL=true
+          else
+            echo "Validating only changed tenants"
+            echo ""
+            VALIDATE_ALL=false
+            
+            # Find changed tenant files
+            CHANGED_FILES="$(git diff --name-only "$BASE..$HEAD" | grep -E '^tenants/(dev|qa|prod)/tenant[^/]+/.*\.yml$' || true)"
+            
+            if [ -z "$CHANGED_FILES" ]; then
+              echo "No tenant YAML changes found. Nothing to validate."
+              exit 0
+            fi
+            
+            echo "Changed files:"
+            echo "$CHANGED_FILES"
+            echo ""
+            
+            # Build unique "<env> <tenant>" pairs: e.g., "dev tenantA"
+            mapfile -t CHANGED_PAIRS < <(echo "$CHANGED_FILES" | awk -F'/' '{print $2" "$3}' | sort -u)
+            echo "Changed env/tenant pairs:"
+            printf '%s\n' "${CHANGED_PAIRS[@]}"
+            echo ""
+          fi
+          
+          # If validating all, build all env/tenant pairs
+          if [ "$VALIDATE_ALL" = "true" ]; then
+            mapfile -t CHANGED_PAIRS < <(
+              for ENV in dev qa prod; do
+                if [ -d "tenants/$ENV" ]; then
+                  for tenant_dir in tenants/${ENV}/tenant*/; do
+                    if [ -d "$tenant_dir" ]; then
+                      TENANT=$(basename "$tenant_dir")
+                      echo "$ENV $TENANT"
+                    fi
+                  done
+                fi
+              done
+            )
+          fi
+          
+          # Process each tenant
+          for pair in "${CHANGED_PAIRS[@]}"; do
+            ENV="$(echo "$pair" | awk '{print $1}')"
+            TENANT="$(echo "$pair" | awk '{print $2}')"
+            
+            TENANT_DIR="tenants/${ENV}/${TENANT}"
+            MERGED_YML="${ENV}-${TENANT}-combined.yml"
+            
+            echo "=== Processing ${ENV}/${TENANT} ==="
+            
+            if [ ! -d "$TENANT_DIR" ]; then
+              echo "Directory ${TENANT_DIR} not found, skipping..."
+              echo ""
               continue
             fi
             
-            echo "Processing environment: $ENV"
-            echo "----------------------------------------"
+            if ! ls "${TENANT_DIR}"/*.yml >/dev/null 2>&1; then
+              echo "No YAML files in ${TENANT_DIR}, skipping..."
+              echo ""
+              continue
+            fi
             
-            # Clean up any existing merged files
-            rm -f ${ENV}-tenant*-combined.yml
+            TOTAL_TENANTS=$((TOTAL_TENANTS + 1))
             
-            # Loop through all tenant directories and merge
-            for tenant_dir in ${ENV}/tenant*/; do
-              if [ -d "$tenant_dir" ]; then
-                tenant_name=$(basename "$tenant_dir")
-                TOTAL_TENANTS=$((TOTAL_TENANTS + 1))
-                
-                echo "Processing tenant: $tenant_name"
-                
-                # Check if YAML files exist
-                if ls ${tenant_dir}/*.yml 1> /dev/null 2>&1; then
-                  # Merge all YAML files for this tenant
-                  yq eval-all '. as $item ireduce ({}; . * $item)' \
-                    ${tenant_dir}/*.yml \
-                    > ${ENV}-${tenant_name}-combined.yml
-                  
-                  echo "✓ Created ${ENV}-${tenant_name}-combined.yml"
-                  
-                  # Run shared-sec validation
-                  echo "Validating security policies..."
-                  if conftest test \
-                    --policy ../overlays/policies/shared_sec.rego \
-                    --data ../overlays/shared-sec/identity_access.yml \
-                    ${ENV}-${tenant_name}-combined.yml; then
-                    PASSED_TENANTS=$((PASSED_TENANTS + 1))
-                    echo " PASSED: ${ENV}/${tenant_name}"
-                  else
-                    echo " FAILED: ${ENV}/${tenant_name} violates security policy"
-                    FAILED=1
-                  fi
-                else
-                  echo "  No YAML files found in $tenant_dir"
-                fi
-                echo ""
-              fi
-            done
+            # Merge all YAMLs for this tenant
+            yq eval-all '. as $item ireduce ({}; . * $item)' "${TENANT_DIR}"/*.yml > "${MERGED_YML}"
+            echo "✓ Created ${MERGED_YML}"
             
-            # Clean up merged files for this environment
-            rm -f ${ENV}-tenant*-combined.yml
+            # Inject env so Rego can read input.env
+            yq -i ".env = \"${ENV}\"" "${MERGED_YML}"
+            echo "✓ Injected env=${ENV} into ${MERGED_YML}"
+            
+            # Run shared-sec validation
+            echo "Running conftest for ${ENV}/${TENANT}..."
+            if conftest test \
+              --policy overlays/policies/shared_sec.rego \
+              --data overlays/shared-sec/identity_access.yml \
+              "${MERGED_YML}"; then
+              PASSED_TENANTS=$((PASSED_TENANTS + 1))
+              echo "✓ PASSED: ${ENV}/${TENANT}"
+            else
+              echo "✗ FAILED: ${ENV}/${TENANT} violates security policy"
+              FAILED=1
+            fi
+            
+            # Cleanup artifact
+            rm -f "${MERGED_YML}"
+            echo ""
           done
           
           echo "=========================================="
@@ -822,5 +988,17 @@ jobs:
           echo "=========================================="
           
           if [ $FAILED -eq 1 ]; then
+            echo "One or more tenants failed security validation"
             exit 1
+          elif [ $TOTAL_TENANTS -eq 0 ]; then
+            echo "No tenants were validated"
+          else
+            echo "All tenants passed security validation"
           fi
+
+      - name: Skip tenant validation message
+        if: steps.check-changes.outputs.tenant-changes == 'false' && steps.check-changes.outputs.policy-changed == 'false'
+        shell: bash
+        run: |
+          echo "No tenant configuration changes detected in this PR."
+          echo "Skipping tenant security validation."

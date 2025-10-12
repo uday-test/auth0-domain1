@@ -21,3 +21,7 @@ tokens:
 security:
   allowed_origins:
     - "http://localhost:3000"
+passwordPolicy:
+  length:
+    min: 10  # This overrides hardening.yml
+  history: 10
