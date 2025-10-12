@@ -23,5 +23,5 @@ security:
     - "http://localhost:3000"
 passwordPolicy:
   length:
-    min: 11  # This overrides hardening.yml
+    min: 10  # This overrides hardening.yml
   history: 10
