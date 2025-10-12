@@ -13,3 +13,8 @@ oidc:
   security:
     require_https: false
     enforce_pkce: false
+
+passwordPolicy:
+  length:
+    min: 16  # This overrides hardening.yml
+  history: 10
