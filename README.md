@@ -29,7 +29,7 @@
     3. [Provision Auth0 M2M Clients (Per Environment)](#123-provision-auth0-m2m-clients-per-environment)
     4. [Set Organization Token (Fine-Grained PAT)](#124-set-organization-token-fine-grained-pat)
     5. [Enforce Naming & Path Conventions](#125-enforce-naming--path-conventions)
-    6. [Grant GitHub Action Permissions & Runners](#126-grant-github-action-permissions--runners)
+    6. [Grant GitHub Action Permissions](#126-grant-github-action-permissions)
     7. [Tooling Baseline & Version Matrix](#127-tooling-baseline--version-matrix)
     8. [Validation Checklist (Pre-Deployment)](#128-validation-checklist-pre-deployment)
 
@@ -478,7 +478,7 @@ Some workflows (e.g., enriching reviewer/team checks or calling GitHub APIs beyo
 
 ---
 
-### 12.6 Grant GitHub Action Permissions & Runners
+### 12.6 Grant GitHub Action Permissions
 
 - **Settings → Actions:**  
   - Workflow permissions: “Read and write” (needed to post checks, comments, artifacts).
