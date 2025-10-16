@@ -1,57 +1,57 @@
 # Auth0-Domain1 – Repository & Policy-Driven CI/CD Documentation
 
-##  Table of Contents
-1. [High-level Overview](#1-high-level-overview)
-2. [Repository Layout](#2-repository-layout--purpose)
-3. [Ownership, RBAC, and Path Guard](#3-ownership-rbac-and-path-guard)
-   - [3.1 CODEOWNERS (team-based review control)](#31-codeowners-team-based-review-control)
-   - [3.2 PR Path Guard (OPA)](#32-pr-path-guard-opa)
-4. [Standards & Policies – What’s Checked Against What](#4-standards--policies--whats-checked-against-what)
-   - [4.1 Baseline Standards vs Baseline Configs](#41-baseline-standards-vs-baseline-configs)
-   - [4.2 Tenant-Level Standards (per-env overlays)](#42-tenant-level-standards-per-env-overlays)
-   - [4.3 App-Level Standards vs App Configs](#43-app-level-standards-vs-app-configs)
+## Table of Contents
+1. [Overview & Objectives](#1-overview--objectives)
+2. [Repository Architecture & Folder Layout](#2-repository-architecture--folder-layout)
+3. [Access Control & Path Governance](#3-access-control--path-governance)
+   - [3.1 CODEOWNERS Review Model](#31-codeowners-review-model)
+   - [3.2 PR Path Guard Policy (OPA)](#32-pr-path-guard-policy-opa)
+4. [Standards Framework & Policy Enforcement](#4-standards-framework--policy-enforcement)
+   - [4.1 Baseline Standards vs Baseline Configurations](#41-baseline-standards-vs-baseline-configurations)
+   - [4.2 Environment-Specific Tenant Standards (Overlays)](#42-environment-specific-tenant-standards-overlays)
+   - [4.3 Application-Level Standards & Validations](#43-application-level-standards--validations)
    - [4.4 Enterprise Shared Security Overlay](#44-enterprise-shared-security-overlay)
-5. [CI/CD – What Runs on Each PR & Push | Workflows](#5-cicd--what-runs-on-each-pr--push)
-   - [5.1 PR Checks (Conftest) – `.github/workflows/pr-checks.yml`](#51-pr-checks-conftest---githubworkflowspr-checksyml)
-   - [5.2 Terraform Check – `.github/workflows/terraform-check.yml`](#52-terraform-check---githubworkflowsterraform-checkyml)
-   - [5.3 Deploy to Auth0 (Dev) – `.github/workflows/terraform-deploy.yml`](#53-deploy-to-auth0-dev---githubworkflowsterraform-deployyml)
-   - [5.4 Secret Smoke Test – `.github/workflows/ci-smoke.yml`](#54-secret-smoke-test---githubworkflowsci-smokeyml)
-6. [Terraform – What Actually Gets Applied](#6-terraform--what-actually-gets-applied)
-7. [Data Flow – From YAML to Policy to Plan](#7-data-flow--from-yaml-to-policy-to-plan)
-8. [Practical Examples of Enforcement](#8-practical-examples-of-enforcement)
-9. [How to Extend](#9-how-to-extend)
-10. [Inputs Expected by Policies (for reference)](#10-inputs-expected-by-policies-for-reference)
-11. [Operational Notes](#11-operational-notes)
-    - [Appendix – File Pointers (non‑exhaustive)](#appendix--file-pointers-nonexhaustive)
-12. [Setup & Prereqs (one-time)](#12-setup--prereqs-one-time)
-      - [12.1 Create GitHub Teams (RBAC)](#121-create-github-teams-rbac)
-      - [12.2 Create GitHub Environments & Secrets (per-env)](#122-create-github-environments--secrets-per-env)
-      - [12.3 Create/Configure Auth0 M2M Clients (per-env)](#123-createconfigure-auth0-m2m-clients-per-env)
-      - [12.4 Organization Token (GitHub) – Fine-grained PAT for org lookups](#124-organization-token-github--fine-grained-pat-for-org-lookups)
-      - [12.5 Name & Path Conventions (consumed by policies)](#125-name--path-conventions-consumed-by-policies)
-      - [12.6 GitHub Actions permissions & runners](#126-github-actions-permissions--runners)
-      - [12.7 Tooling versions (baseline)](#127-tooling-versions-baseline)
-      - [12.8 Quick validation checklist](#128-quick-validation-checklist)
+5. [Continuous Integration & Delivery Pipelines (CI/CD)](#5-continuous-integration--delivery-pipelines-cicd)
+   - [5.1 PR Validation Workflow – `.github/workflows/pr-checks.yml`](#51-pr-validation-workflow--githubworkflowspr-checksyml)
+   - [5.2 Terraform Plan Validation – `.github/workflows/terraform-check.yml`](#52-terraform-plan-validation--githubworkflowsterraform-checkyml)
+   - [5.3 Deployment Workflow – `.github/workflows/terraform-deploy.yml`](#53-deployment-workflow--githubworkflowsterraform-deployyml)
+   - [5.4 Secret Verification – `.github/workflows/ci-smoke.yml`](#54-secret-verification--githubworkflowsci-smokeyml)
+6. [Terraform Deployment Model](#6-terraform-deployment-model)
+7. [Configuration Data Flow](#7-configuration-data-flow)
+8. [Enforcement Scenarios & Real-World Examples](#8-enforcement-scenarios--real-world-examples)
+9. [Extensibility & Future Enhancements](#9-extensibility--future-enhancements)
+10. [Policy Input Schema Reference](#10-policy-input-schema-reference)
+11. [Operational Guidance & Governance Notes](#11-operational-guidance--governance-notes)
+    - [11.1 Policy & Workflow File References](#111-policy--workflow-file-references)
+12. [Initial Setup & Environment Prerequisites](#12-initial-setup--environment-prerequisites)
+    1. [Create GitHub Teams (RBAC Model)](#121-create-github-teams-rbac-model)
+    2. [Configure GitHub Environments & Secrets](#122-configure-github-environments--secrets)
+    3. [Provision Auth0 M2M Clients (Per Environment)](#123-provision-auth0-m2m-clients-per-environment)
+    4. [Set Organization Token (Fine-Grained PAT)](#124-set-organization-token-fine-grained-pat)
+    5. [Enforce Naming & Path Conventions](#125-enforce-naming--path-conventions)
+    6. [Grant GitHub Action Permissions & Runners](#126-grant-github-action-permissions--runners)
+    7. [Tooling Baseline & Version Matrix](#127-tooling-baseline--version-matrix)
+    8. [Validation Checklist (Pre-Deployment)](#128-validation-checklist-pre-deployment)
 
 ---
 
-## 1) High-level Overview
+## 1) Overview & Objectives
 
 This repository codifies **Auth0 tenant and application configuration**, along with **security and compliance standards**, entirely as code.  
 It integrates **policy-as-code**, **CI/CD automation**, and **Terraform-based infrastructure management** to ensure every configuration change is reviewable, validated, and reproducible.
 
 It uses:
 
-- **[OPA/Rego policies](#4-standards--policies--whats-checked-against-what)** with **Conftest** to validate YAML configuration files against defined standards before deployment.  
-- **[GitHub Actions workflows](#5-cicd--what-runs-on-each-pr--push)** to enforce [path ownership and RBAC](#3-ownership-rbac-and-path-guard), validate [baseline configurations](#41-baseline-standards-vs-baseline-configs), [tenant overlays](#42-tenant-level-standards-per-env-overlays), and [application-level settings](#43-app-level-standards-vs-app-configs), while automating Terraform checks and deployments.  
-- **[Terraform automation](#6-terraform--what-actually-gets-applied)** to apply validated and approved baseline configurations directly to Auth0 tenants using environment-specific M2M credentials.
+- **[OPA/Rego policies](#4-standards-framework--policy-enforcement)** with **Conftest** to validate YAML configuration files against defined standards before deployment.  
+- **[GitHub Actions workflows](#5-continuous-integration--delivery-pipelines-cicd)** to enforce [path ownership and RBAC](#3-access-control--path-governance), validate [baseline configurations](#41-baseline-standards-vs-baseline-configurations), [tenant overlays](#42-environment-specific-tenant-standards-overlays), and [application-level settings](#43-application-level-standards--validations), while automating Terraform checks and deployments.  
+- **[Terraform automation](#6-terraform-deployment-model)** to apply validated and approved baseline configurations directly to Auth0 tenants using environment-specific M2M credentials.
 
-> Primary CI/CD jobs reside in [`.github/workflows/`](#5-cicd--what-runs-on-each-pr--push), and policies live under  
-> [`base/**`](#41-baseline-standards-vs-baseline-configs), [`tenants/**`](#42-tenant-level-standards-per-env-overlays), and [`overlays/**`](#44-enterprise-shared-security-overlay).
+> Primary CI/CD jobs reside in [`.github/workflows/`](#5-continuous-integration--delivery-pipelines-cicd), and policies live under  
+> [`base/**`](#41-baseline-standards-vs-baseline-configurations), [`tenants/**`](#42-environment-specific-tenant-standards-overlays), and [`overlays/**`](#44-enterprise-shared-security-overlay).
 
 ---
 
-## 2) Repository Layout & Purpose
+## 2) Repository Architecture & Folder Layout
 
 ```
 auth0-domain1/
@@ -62,7 +62,7 @@ auth0-domain1/
 │  └─ terraform-deploy.yml          # On push to main – deploy baseline via TF
 │
 ├─ CODEOWNERS                       # Team-based ownership and review rules
-├─ README.md                        # Short repo layout notes
+├─ README.md                        # Repo documentation
 │
 ├─ apps/
 │  ├─ app1/
@@ -128,9 +128,9 @@ auth0-domain1/
 
 ---
 
-## 3) Ownership, RBAC, and Path Guard
+## 3) Access Control & Path Governance
 
-### 3.1 CODEOWNERS (team-based review control)
+### 3.1 CODEOWNERS Review Model
 - File: `CODEOWNERS`
 - Default owner: `@uday-test/ciam-core` for everything.
 - App folders: `/apps/app1/` → `@uday-test/team-app1-reviewers`, `/apps/app2/` → `@uday-test/team-app2-reviewers`.
@@ -138,7 +138,7 @@ auth0-domain1/
 
 This ensures the right reviewers must approve changes in app- or platform-owned paths before merging.
 
-### 3.2 PR Path Guard (OPA)
+### 3.2 PR Path Guard Policy (OPA)
 - File: `base/policies/path_guard.rego`
 - Inputs: (provided by the workflow) changed `files[]`, actor `actor_teams[]`, and optional `env`.
 - Behavior:
@@ -151,9 +151,9 @@ This ensures the right reviewers must approve changes in app- or platform-owned 
 
 ---
 
-## 4) Standards & Policies – What’s Checked Against What
+## 4) Standards Framework & Policy Enforcement
 
-### 4.1 Baseline Standards vs Baseline Configs
+### 4.1 Baseline Standards vs Baseline Configurations
 - **Standards (authoritative expectations):**
   - `base/base-line/validators/*.yaml` (4 files) define required schema/values for:
     - `app-oidc`, `auth-settings`, `risk-settings`, and `ux-settings`.
@@ -169,7 +169,7 @@ This ensures the right reviewers must approve changes in app- or platform-owned 
 
 > Outcome: If a baseline config drifts from standard, PR fails in “Baseline Config Validation.”
 
-### 4.2 Tenant-Level Standards (per-env overlays)
+### 4.2 Environment-Specific Tenant Standards (Overlays)
 - **Standards:** `tenants/overlays/validators/*.yml` encode **dev/qa/prod** specific rules (e.g., grant types, PKCE, HTTPS, UX restrictions, risk controls).
 - **Policy:** `tenants/overlays/policies/auth0_validation.rego`
   - Detects `env` from inputs (issuer patterns, allowed origins, branding URL hints) and applies the correct env’s rules.
@@ -180,7 +180,7 @@ This ensures the right reviewers must approve changes in app- or platform-owned 
 
 > Outcome: Edits under `tenants/<env>/<tenantX>/*.yml` are validated against **that env’s** standards.
 
-### 4.3 App-Level Standards vs App Configs (per-app folders)
+### 4.3 Application-Level Standards & Validations
 - **Standards (common, enterprise):** `base/tenants-common/*.yml`
   - `security.yml` (e.g., allowed grant types and response types per `spa`, `regular_web`, `native`, CORS rules, OIDC conformance, token endpoint auth methods, cross-origin auth expectations, etc.)
   - `tokens.yml` (JWT alg/lifetimes, refresh token rotation/absolute lifetime, etc.)
@@ -205,9 +205,9 @@ This ensures the right reviewers must approve changes in app- or platform-owned 
 
 ---
 
-## 5) CI/CD – What Runs on Each PR & Push
+## 5) Continuous Integration & Delivery Pipelines (CI/CD)
 
-### 5.1 PR Checks (Conftest) – `.github/workflows/pr-checks.yml`
+### 5.1 PR Validation Workflow – `.github/workflows/pr-checks.yml`
 **Triggers:** `pull_request` to `main` (opened, reopened, synchronize, edited, ready_for_review) and manual `workflow_dispatch`.
 
 **Jobs (in order):**
@@ -237,7 +237,7 @@ This ensures the right reviewers must approve changes in app- or platform-owned 
 
 > **Fail-fast behavior:** Any denial from Rego causes the job to fail and the PR check to turn red.
 
-### 5.2 Terraform Check – `.github/workflows/terraform-check.yml`
+### 5.2 Terraform Plan Validation – `.github/workflows/terraform-check.yml`
 **Trigger:** `pull_request` to `main` when paths under `base/base-line/configs/**` change.
 
 **Behavior:**
@@ -246,7 +246,7 @@ This ensures the right reviewers must approve changes in app- or platform-owned 
 
 > **Note:** This job safeguards infra drift by ensuring what would deploy is visible during review, but **does not** apply changes on PRs.
 
-### 5.3 Deploy to Auth0 (Dev) – `.github/workflows/terraform-deploy.yml`
+### 5.3 Deployment Workflow – `.github/workflows/terraform-deploy.yml`
 **Trigger:** `push` to `main` under `base/base-line/configs/**` (and manual dispatch).
 
 **Behavior:**
@@ -254,27 +254,29 @@ This ensures the right reviewers must approve changes in app- or platform-owned 
 - Runs Terraform `init/validate/plan/apply` using `base/terraform/` and the merged baseline configs.
 - Publishes a summary (success/failure). Uploads plan as an artifact for audit.
 
-### 5.4 Secret Smoke Test – `.github/workflows/ci-smoke.yml`
+### 5.4 Secret Verification – `.github/workflows/ci-smoke.yml`
 **Trigger:** manual `workflow_dispatch`.
 
 **Behavior:**
 - Exchanges the configured M2M client credentials for an Auth0 **access token** to verify secrets are valid and the tenant is reachable.
-> For now I am deploying it to the dev environemtn using the dev credetntials stored in my environement variables of my repository.
+
+> For now, deployments target the **dev** environment using credentials stored as environment secrets.
+
 ---
 
-## 6) Terraform – What Actually Gets Applied
+## 6) Terraform Deployment Model
 
 - **Provider:** `auth0/auth0` (see `base/terraform/main.tf` / `variables.tf`).
 - **Inputs:** Provided by GitHub environment secrets and the baseline config YAMLs (merged in the workflow prior to plan/apply or read by the TF code as local files if scripted).
 - **Managed resources include (examples, see `main.tf`):**
   - Branding, database connection, Guardian/MFA policy, and app/client configuration derived from baseline inputs.
-- **Outputs:** Helpful values like database connection ID, MFA policy state, etc., are surfaced by `output {}` blocks.
+- **Outputs:** Useful outputs like database connection ID, MFA policy state, etc., via `output {}` blocks.
 
-> **State:** Use a secure remote backend in production. (This POC includes local artifacts for storing the terraform state file; for real environments configure Terraform Cloud, S3 + DynamoDB, etc.)
+> **State:** Use a secure remote backend in production. (This POC may include local artifacts to persist TF state; for real environments configure Terraform Cloud, S3 + DynamoDB, etc.)
 
 ---
 
-## 7) Data Flow – From YAML to Policy to Plan
+## 7) Configuration Data Flow
 
 1. **Author edits** YAML files under `apps/`, `tenants/<env>/tenantX/`, or `base/base-line/`.
 2. **PR opened** → GitHub Actions run:
@@ -285,7 +287,7 @@ This ensures the right reviewers must approve changes in app- or platform-owned 
 
 ---
 
-## 8) Practical Examples of Enforcement
+## 8) Enforcement Scenarios & Real-World Examples
 
 - **Cross‑app edits blocked:** A member of `team-app1` changes `apps/app2/security.yml` → `path_guard.rego` denies with: _“Your team (app: app1) cannot modify files in app: app2.”_
 - **Prod edits blocked:** Any non‑core change under `tenants/prod/**` → denied.
@@ -295,7 +297,7 @@ This ensures the right reviewers must approve changes in app- or platform-owned 
 
 ---
 
-## 9) How to Extend
+## 9) Extensibility & Future Enhancements
 
 - **Add a new app:** Create `apps/<appN>/{security.yml,tokens.yml,orgs.yml}`. Update team mappings in `path_guard.rego` and CODEOWNERS for reviewers.
 - **Add a new tenant:** Add `tenants/<env>/<tenantX>/*.yml`. The tenant overlay policy will auto‑detect env and validate.
@@ -304,12 +306,12 @@ This ensures the right reviewers must approve changes in app- or platform-owned 
 
 ---
 
-## 10) Inputs Expected by Policies (for reference)
+## 10) Policy Input Schema Reference
 
 - **Path Guard (`path_guard.rego`):**
   ```json
   {
-    "files": ["apps/app1/security.yml", "tenants/dev/tenantA/app-oidc.yml", ...],
+    "files": ["apps/app1/security.yml", "tenants/dev/tenantA/app-oidc.yml", "..."],
     "actor_teams": ["team-app1", "team-app1-reviewers"],
     "debug": false
   }
@@ -344,13 +346,13 @@ This ensures the right reviewers must approve changes in app- or platform-owned 
 
 ---
 
-## 11) Operational Notes
+## 11) Operational Guidance & Governance Notes
 
-- Keep reviewer teams in sync with CODEOWNERS and `team_to_app` map in `path_guard.rego`.
+- Keep reviewer teams in sync with CODEOWNERS and the `team_to_app` map in `path_guard.rego`.
 - Prefer small, scoped PRs to make policy violations obvious and actionable.
 - For real deployments, configure a secure Terraform backend and split environment deployments by environment with appropriate environment secrets.
 
-### Appendix – File Pointers (non‑exhaustive)
+### 11.1 Policy & Workflow File References
 - **Policies:**
   - `base/policies/path_guard.rego`
   - `base/policies/auth0_policy.rego`
@@ -373,13 +375,11 @@ This ensures the right reviewers must approve changes in app- or platform-owned 
 
 ---
 
-## 12) Setup & Prereqs (one-time)
+## 12) Initial Setup & Environment Prerequisites
 
 This section prepares GitHub and Auth0 so the CI policy gates and Terraform flows can run securely per environment.
 
----
-
-### 12.1 Create GitHub Teams (RBAC)
+### 12.1 Create GitHub Teams (RBAC Model)
 
 Create the following teams in your GitHub org:
 
@@ -411,7 +411,7 @@ Protect **main** branch:
 
 ---
 
-### 12.2 Create GitHub Environments & Secrets (per-env)
+### 12.2 Configure GitHub Environments & Secrets
 
 Create GitHub **Environments**: `dev`, `qa`, `prod`. Add environment-scoped secrets:
 
@@ -428,7 +428,7 @@ Create GitHub **Environments**: `dev`, `qa`, `prod`. Add environment-scoped secr
 
 ---
 
-### 12.3 Create/Configure Auth0 M2M Clients (per-env)
+### 12.3 Provision Auth0 M2M Clients (Per Environment)
 
 In each Auth0 tenant (`dev` / `qa` / `prod`):
 
@@ -448,11 +448,11 @@ read:branding, update:branding
 
 ---
 
-### 12.4 Organization Token (GitHub) – Fine-grained PAT for org lookups
+### 12.4 Set Organization Token (Fine-Grained PAT)
 
 Some workflows (e.g., enriching reviewer/team checks or calling GitHub APIs beyond the default GITHUB_TOKEN capabilities) may need an org-scoped token.
 
-#### Configuration
+**Configuration**
 
 - **Secret name:** `ORG_TOKEN`
 - **Location:** Store once in the `dev` environment (usable across all workflows)
@@ -463,11 +463,11 @@ Some workflows (e.g., enriching reviewer/team checks or calling GitHub APIs beyo
   - Read access to organization members
 - **Repository access:** Restrict to `auth0-domain1` repo only
 
-> Add `ORG_TOKEN` to retrieve the github team membership.
+> Add `ORG_TOKEN` only if your policy/check scripts call endpoints that require elevated scopes (e.g., team membership introspection).
 
 ---
 
-### 12.5 Name & Path Conventions (consumed by policies)
+### 12.5 Enforce Naming & Path Conventions
 
 - **Teams** must match `CODEOWNERS` and `path_guard.rego` mappings:
   - `team-app1` ↔ paths: `/apps/app1/**`, `/tenants/dev/**`
@@ -478,7 +478,7 @@ Some workflows (e.g., enriching reviewer/team checks or calling GitHub APIs beyo
 
 ---
 
-### 12.6 GitHub Actions permissions & runners
+### 12.6 Grant GitHub Action Permissions & Runners
 
 - **Settings → Actions:**  
   - Workflow permissions: “Read and write” (needed to post checks, comments, artifacts).
@@ -488,7 +488,7 @@ Some workflows (e.g., enriching reviewer/team checks or calling GitHub APIs beyo
 
 ---
 
-### 12.7 Tooling versions (baseline)
+### 12.7 Tooling Baseline & Version Matrix
 
 | Tool | Version | Notes |
 |------|----------|--------|
@@ -499,7 +499,7 @@ Some workflows (e.g., enriching reviewer/team checks or calling GitHub APIs beyo
 
 ---
 
-### 12.8 Quick validation checklist
+### 12.8 Validation Checklist (Pre-Deployment)
 
 - [x] Teams created; membership set.
 - [x] Branch protection on `main` with required checks & CODEOWNERS reviews.
