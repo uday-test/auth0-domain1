@@ -501,7 +501,7 @@ Some workflows (e.g., enriching reviewer/team checks or calling GitHub APIs beyo
 - [x] Branch protection on `main` with required checks & CODEOWNERS reviews.
 - [x] GitHub Environments created with correct secrets per env.
 - [x] Auth0 M2M created per env with least-privilege scopes and secrets saved.
-- [x] (Optional) `ORG_TOKEN` secret set if org lookups are needed.
+- [x] `ORG_TOKEN` secret set to retrieve the team memberships.
 - [x] Smoke test workflow completes successfully.
 - [x] PR checks block cross-app edits and prod edits by non-core members.
 
