@@ -302,8 +302,6 @@ This ensures the right reviewers must approve changes in app- or platform-owned 
 - **Add a new app:** Create `apps/<appN>/{security.yml,tokens.yml,orgs.yml}`. Update team mappings in `path_guard.rego` and CODEOWNERS for reviewers.
 - **Add a new tenant:** Add `tenants/<env>/<tenantX>/*.yml`. The tenant overlay policy will auto‑detect env and validate.
 - **Strengthen enterprise posture:** Update `overlays/shared-sec/identity_access.yml` and logic in `overlays/policies/shared_sec.rego`.
-- **Evolve baseline:** Modify `base/base-line/configs/*.yml` and, if necessary, the matching `validators/*.yaml`; PR checks ensure schema/value consistency.
-
 ---
 
 ## 10) Policy Input Schema Reference
