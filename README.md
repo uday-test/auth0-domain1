@@ -1,4 +1,4 @@
-# Auth0-Domain1 – Repository & Policy-Driven CI/CD Documentation
+# Auth0-Domain1 – Repository & Policy-Driven Documentation
 
 ## Table of Contents
 1. [Overview & Objectives](#1-overview--objectives)
