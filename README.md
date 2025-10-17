@@ -24,14 +24,14 @@
 11. [Operational Guidance & Governance Notes](#11-operational-guidance--governance-notes)
     - [11.1 Policy & Workflow File References](#111-policy--workflow-file-references)
 12. [Initial Setup & Environment Prerequisites](#12-initial-setup--environment-prerequisites)
-    1. [Create GitHub Teams (RBAC Model)](#121-create-github-teams-rbac-model)
-    2. [Configure GitHub Environments & Secrets](#122-configure-github-environments--secrets)
-    3. [Provision Auth0 M2M Clients (Per Environment)](#123-provision-auth0-m2m-clients-per-environment)
-    4. [Set Organization Token (Fine-Grained PAT)](#124-set-organization-token-fine-grained-pat)
-    5. [Enforce Naming & Path Conventions](#125-enforce-naming--path-conventions)
-    6. [Grant GitHub Action Permissions](#126-grant-github-action-permissions)
-    7. [Tooling Baseline & Version Matrix](#127-tooling-baseline--version-matrix)
-    8. [Validation Checklist (Pre-Deployment)](#128-validation-checklist-pre-deployment)
+    - [12.1 Create GitHub Teams (RBAC Model)](#121-create-github-teams-rbac-model)
+    - [12.2 Configure GitHub Environments & Secrets](#122-configure-github-environments--secrets)
+    - [12.3 Provision Auth0 M2M Clients (Per Environment)](#123-provision-auth0-m2m-clients-per-environment)
+    - [12.4 Set Organization Token (Fine-Grained PAT)](#124-set-organization-token-fine-grained-pat)
+    - [12.5 Enforce Naming & Path Conventions](#125-enforce-naming--path-conventions)
+    - [12.6 Grant GitHub Action Permissions](#126-grant-github-action-permissions)
+    - [12.7 Tooling Baseline & Version Matrix](#127-tooling-baseline--version-matrix)
+    - [12.8 Validation Checklist (Pre-Deployment)](#128-validation-checklist-pre-deployment)
 
 ---
 
