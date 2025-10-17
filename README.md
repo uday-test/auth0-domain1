@@ -5,7 +5,7 @@
 2. [Repository Architecture & Folder Layout](#2-repository-architecture--folder-layout)
 3. [Access Control & Path Governance](#3-access-control--path-governance)
    - [3.1 CODEOWNERS Review Model](#31-codeowners-review-model)
-   - [3.2 PR Path Guard Policy (OPA)](#32-pr-path-guard-policy-opa)
+   - [3.2 PR Path Guard Policy](#32-pr-path-guard-policy)
 4. [Standards Framework & Policy Enforcement](#4-standards-framework--policy-enforcement)
    - [4.1 Baseline Standards vs Baseline Configurations](#41-baseline-standards-vs-baseline-configurations)
    - [4.2 Environment-Specific Tenant Standards (Overlays)](#42-environment-specific-tenant-standards-overlays)
@@ -138,7 +138,7 @@ auth0-domain1/
 
 This ensures the right reviewers must approve changes in app- or platform-owned paths before merging.
 
-### 3.2 PR Path Guard Policy (OPA)
+### 3.2 PR Path Guard Policy
 - File: `base/policies/path_guard.rego`
 - Inputs: (provided by the workflow) changed `files[]`, actor `actor_teams[]`, and optional `env`.
 - Behavior:
@@ -391,7 +391,8 @@ Create the following teams in your GitHub org:
 
 - **@uday-test/team-app1-reviewers**
   - Purpose: required reviewers for app1 paths.
-  - Permissions: Triage or Write.
+  - Permissions: Write.
+  - This team is child of the parent team team-app1.
 
 - **@uday-test/team-app2 / @uday-test/team-app2-reviewers**
   - Same as app1 for app2.
@@ -401,11 +402,9 @@ Create the following teams in your GitHub org:
 #### Branch protection & required reviews
 
 Protect **main** branch:
-
+- Add classic branch protection rule
 - Require PRs.
-- Require status checks to pass: **PR Checks (Conftest)**, **Terraform Check**.
 - Require CODEOWNERS reviews (e.g., 1–2 approvals).
-- Dismiss stale approvals on new commits (recommended).
 
 ---
 
@@ -453,7 +452,7 @@ Some workflows (e.g., enriching reviewer/team checks or calling GitHub APIs beyo
 **Configuration**
 
 - **Secret name:** `ORG_TOKEN`
-- **Location:** Store once in the `dev` environment (usable across all workflows)
+- **Location:** Store in the Organization secrets
 - **Type:** Fine-grained PAT (preferred)
 - **Owner:** Service or bot account
 - **Access scopes:**
@@ -461,7 +460,7 @@ Some workflows (e.g., enriching reviewer/team checks or calling GitHub APIs beyo
   - Read access to organization members
 - **Repository access:** Restrict to `auth0-domain1` repo only
 
-> Add `ORG_TOKEN` only if your policy/check scripts call endpoints that require elevated scopes (e.g., team membership introspection).
+> Add `ORG_TOKEN` to retrieve the team memberships of the developer who raisd the PR.
 
 ---
 
@@ -481,8 +480,6 @@ Some workflows (e.g., enriching reviewer/team checks or calling GitHub APIs beyo
 - **Settings → Actions:**  
   - Workflow permissions: “Read and write” (needed to post checks, comments, artifacts).
   - Allow GitHub Actions to create and approve pull requests from GitHub Apps: optional.
-- **Runners:** `ubuntu-latest` is assumed.  
-  (If self-hosted, ensure `conftest`, `yq`, and `terraform` can be installed.)
 
 ---
 
@@ -491,9 +488,9 @@ Some workflows (e.g., enriching reviewer/team checks or calling GitHub APIs beyo
 | Tool | Version | Notes |
 |------|----------|--------|
 | Conftest | v0.62.0 | Used in workflows |
-| yq | v4.x | Scripts expect yq v4 CLI |
+| yq | v4.44.3 | Scripts expect yq v4 CLI |
 | Terraform | 1.6.x | Matches setup-terraform version |
-| OPA/Rego | v1 | Align imports with Rego v1 syntax |
+| Rego | v1 | Align imports with Rego v1 syntax |
 
 ---
 
