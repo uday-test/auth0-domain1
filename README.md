@@ -42,7 +42,7 @@ It integrates **policy-as-code**, **CI/CD automation**, and **Terraform-based in
 
 It uses:
 
-- **[OPA/Rego policies](#4-standards-framework--policy-enforcement)** with **Conftest** to validate YAML configuration files against defined standards before deployment.  
+- **[Rego policies](#4-standards-framework--policy-enforcement)** with **Conftest** to validate YAML configuration files against defined standards before deployment.  
 - **[GitHub Actions workflows](#5-continuous-integration--delivery-pipelines-cicd)** to enforce [path ownership and RBAC](#3-access-control--path-governance), validate [baseline configurations](#41-baseline-standards-vs-baseline-configurations), [tenant overlays](#42-environment-specific-tenant-standards-overlays), and [application-level settings](#43-application-level-standards--validations), while automating Terraform checks and deployments.  
 - **[Terraform automation](#6-terraform-deployment-model)** to apply validated and approved baseline configurations directly to Auth0 tenants using environment-specific M2M credentials.
 
@@ -156,7 +156,7 @@ This ensures the right reviewers must approve changes in app- or platform-owned 
 ### 4.1 Baseline Standards vs Baseline Configurations
 - **Standards (authoritative expectations):**
   - `base/base-line/validators/*.yaml` (4 files) define required schema/values for:
-    - `app-oidc`, `auth-settings`, `risk-settings`, and `ux-settings`.
+    - `app-oidc-standard`, `auth-settings-standard`, `risk-settings-standard`, and `ux-settings-standard`.
 - **Configs (intended baseline values):**
   - `base/base-line/configs/*.yml` provide actual baseline values.
 - **Policy:** `base/base-line/policies/baseline-validator.rego`
@@ -177,24 +177,25 @@ This ensures the right reviewers must approve changes in app- or platform-owned 
     - `require_https`: dev can be relaxed, qa/prod must be true.
     - `enforce_pkce`: required in qa/prod, relaxed in dev depending on client type.
     - Allowed `grant_types` by env; implicit is allowed only in dev (if configured).
+    - Higher level environmetns require the risk setttings and can be ignored in the lower environment settings like dev.
 
 > Outcome: Edits under `tenants/<env>/<tenantX>/*.yml` are validated against **that env’s** standards.
 
 ### 4.3 Application-Level Standards & Validations
-- **Standards (common, enterprise):** `base/tenants-common/*.yml`
+- **Standards (common):** `base/tenants-common/*.yml`
   - `security.yml` (e.g., allowed grant types and response types per `spa`, `regular_web`, `native`, CORS rules, OIDC conformance, token endpoint auth methods, cross-origin auth expectations, etc.)
   - `tokens.yml` (JWT alg/lifetimes, refresh token rotation/absolute lifetime, etc.)
   - `orgs.yml` (organization usage rules and behaviors)
 - **Configs (per app):** `apps/<app>/{security.yml,tokens.yml,orgs.yml}`
 - **Policy:** `base/policies/auth0_policy.rego`
-  - Inputs: `input.security`, `input.tokens`, `input.orgs`, plus derived `input.app_type` (e.g., SPA, regular_web, native) inferred by the workflow from the folder name.
+  - Inputs: `input.security`, `input.tokens`, `input.orgs`, plus derived `input.app_type` (e.g., SPA, regular_web, native) inferred by the workflow from the file.
   - Validates app configs against common standards, e.g.:
     - **Grant types**: SPA → `authorization_code`, forbid implicit in enterprise prod context; Regular Web → `authorization_code` and proper client auth; Native → no client secret.
     - **Response types** and **CORS/web origins** alignment with client type.
     - **JWT/refresh token** lifetimes and rotation.
     - **Org behaviors** alignment (`allow`, prompt behavior).
 
-> Outcome: PRs that touch `apps/<app>/*` are auto-validated against enterprise standards.
+> Outcome: PRs that touch `apps/<app>/*` are auto-validated against applciation level standards.
 
 ### 4.4 Enterprise Shared Security Overlay
 - **Standards:** `overlays/shared-sec/identity_access.yml` (e.g., min password length, history, and MFA factors to be enabled/disabled enterprise-wide)
@@ -235,7 +236,7 @@ This ensures the right reviewers must approve changes in app- or platform-owned 
    - Detects whether PR touches `apps/*/(tokens|security|orgs).yml`.
    - Iterates each `apps/<app>/` directory, infers **app_type** (`spa`, `regular_web`, `native`), and validates the three app files with `base/policies/auth0_policy.rego` against `base/tenants-common/*` standards.
 
-> **Fail-fast behavior:** Any denial from Rego causes the job to fail and the PR check to turn red.
+> **Fail-fast behavior:** Any denial from policy causes the job to fail and the PR check to turn red.
 
 ### 5.2 Terraform Plan Validation – `.github/workflows/terraform-check.yml`
 **Trigger:** `pull_request` to `main` when paths under `base/base-line/configs/**` change.
@@ -272,7 +273,7 @@ This ensures the right reviewers must approve changes in app- or platform-owned 
   - Branding, database connection, Guardian/MFA policy, and app/client configuration derived from baseline inputs.
 - **Outputs:** Useful outputs like database connection ID, MFA policy state, etc., via `output {}` blocks.
 
-> **State:** Use a secure remote backend in production. (This POC may include local artifacts to persist TF state; for real environments configure Terraform Cloud, S3 + DynamoDB, etc.)
+> **State:** Use a secure remote backend in production. (This POC may include local artifacts to persist TF state; for real environments configure Terraform Cloud, S3 + DynamoDB, etc.) And for now we are deploying it to the dev environemnt,
 
 ---
 
