@@ -260,7 +260,7 @@ This ensures the right reviewers must approve changes in app- or platform-owned 
 **Behavior:**
 - Uses environment `dev` and secrets `DEV_AUTH0_DOMAIN`, `DEV_AUTH0_CLIENT_ID`, `DEV_AUTH0_CLIENT_SECRET` (configured in [Section 12.2](#122-configure-github-environments--secrets)).  
 - Runs Terraform `init/validate/plan/apply` using `base/terraform/` and the merged baseline configs.  
-- Publishes a summary (success/failure). Uploads plan as an artifact for audit.
+- Publishes a summary (success/failure). Uploads plan as an artifact for audit. For now, deploying it to DEV environment.
 
 > For provider and state model, see [Section 6](#6-terraform-deployment-model).
 
