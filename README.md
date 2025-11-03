@@ -180,7 +180,7 @@ This ensures the right reviewers must approve changes in app- or platform-owned 
     - `require_https`: dev can be relaxed, qa/prod must be true.
     - `enforce_pkce`: required in qa/prod, relaxed in dev depending on client type.
     - Allowed `grant_types` by env; implicit is allowed only in dev (if configured).
-    - Higher level environmetns require the risk setttings and can be ignored in the lower environment settings like dev.
+    - Higher level environmetns require the risk settings and can be ignored in the lower environment settings like dev.
 
 > Outcome: Edits under `tenants/<env>/<tenantX>/*.yml` are validated against **that env’s** standards (see [Section 5.1](#51-pr-validation-workflow--githubworkflowspr-checksyml)).
 
@@ -198,7 +198,7 @@ This ensures the right reviewers must approve changes in app- or platform-owned 
     - **JWT/refresh token** lifetimes and rotation.
     - **Org behaviors** alignment (`allow`, prompt behavior).
 
-> Outcome: PRs that touch `apps/<app>/*` are auto-validated against applciation level standards (see [Section 5.1](#51-pr-validation-workflow--githubworkflowspr-checksyml)).
+> Outcome: PRs that touch `apps/<app>/*` are auto-validated against application level standards (see [Section 5.1](#51-pr-validation-workflow--githubworkflowspr-checksyml)).
 
 ### 4.4 Enterprise Shared Security Overlay
 - **Standards:** `overlays/shared-sec/identity_access.yml` (e.g., min password length, history, and MFA factors to be enabled/disabled enterprise-wide)
@@ -476,7 +476,7 @@ Some workflows (e.g., enriching reviewer/team checks or calling GitHub APIs beyo
   - Read access to organization members
 - **Repository access:** Restrict to `auth0-domain1` repo only
 
-> Add `ORG_TOKEN` to retrieve the team memberships of the developer who raisd the PR (used in [Section 5.1](#51-pr-validation-workflow--githubworkflowspr-checksyml)).
+> Add `ORG_TOKEN` to retrieve the team memberships of the developer who raised the PR (used in [Section 5.1](#51-pr-validation-workflow--githubworkflowspr-checksyml)).
 
 ---
 
