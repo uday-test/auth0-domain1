@@ -288,7 +288,7 @@ This ensures the right reviewers must approve changes in app- or platform-owned 
 
 ## 7) Configuration Data Flow
 
-1. **Author edits** YAML files under `apps/`, `tenants/<env>/tenantX/`, or `base/base-line/`.  
+1. **Developer edits** YAML files under `apps/`, `tenants/<env>/tenantX/`, or `base/base-line/`.  
 2. **PR opened** → GitHub Actions run:
    - **Path Guard** enforces ownership and environment boundaries immediately (see [Section 3.2](#32-pr-path-guard-policy) and job in [Section 5.1](#51-pr-validation-workflow--githubworkflowspr-checksyml)).
    - Depending on changed paths, **Conftest** validates against the correct Rego policies and standards (see [Section 4](#4-standards-framework--policy-enforcement)).
@@ -299,10 +299,10 @@ This ensures the right reviewers must approve changes in app- or platform-owned 
 
 ## 8) Enforcement Scenarios & Real-World Examples
 
-- **Cross-app edits blocked:** A member of `team-app1` changes `apps/app2/security.yml` → `path_guard.rego` denies with: _“Your team (app: app1) cannot modify files in app: app2.”_ (see [Section 3.2](#32-pr-path-guard-policy)).  
-- **Prod edits blocked:** Any non-core change under `tenants/prod/**` → denied (see [Section 3.2](#32-pr-path-guard-policy)).  
+- **Cross-app edits blocked:** A member of `team-app1` changes `apps/app2/security.yml` → `path_guard.rego` denies with: _“Your team (app: app1) cannot modify files in app: app2.”_ (see [Section 3.2](#32-pr-path-guard-policy)).
+- **PKCE & HTTPS by env:** In QA/Prod, `enforce_pkce: true` and `require_https: true` are mandatory for OIDC; in Dev some relaxations are allowed per `tenants/overlays/validators/app-oidc-standard.yml` (see [Section 4.2](#42-environment-specific-tenant-standards-overlays)).
+- **Prod edits blocked:** Any app developer change under `tenants/prod/**` → denied (see [Section 3.2](#32-pr-path-guard-policy)).  
 - **SPA security correctness:** An SPA must not use a confidential client auth method; standards enforce `token_endpoint_auth_method` of `none` and `response_types: ["code"]` (validated in [Section 4.3](#43-application-level-standards--validations)).  
-- **PKCE & HTTPS by env:** In QA/Prod, `enforce_pkce: true` and `require_https: true` are mandatory for OIDC; in Dev some relaxations are allowed per `tenants/overlays/validators/app-oidc-standard.yml` (see [Section 4.2](#42-environment-specific-tenant-standards-overlays)).  
 - **JWT lifetimes & refresh token rotation:** Enforced via `base/tenants-common/tokens.yml` against app `tokens.yml` (see [Section 4.3](#43-application-level-standards--validations)).
 
 ---
@@ -437,7 +437,7 @@ Create GitHub **Environments**: `dev`, `qa`, `prod`. Add environment-scoped secr
 #### Optional: smoke test-only client (if different than deployer)
 - `DEV_SMOKE_CLIENT_ID`, `DEV_SMOKE_CLIENT_SECRET` (and equivalents for QA/PROD if you choose to run smoke there)
 
-> Use **Environment secrets** (not repository secrets) so jobs run only with the minimum needed credentials for that environment (consumed by [Sections 5.3](#53-deployment-workflow--githubworkflowsterraform-deployyml) and [5.4](#54-secret-verification--githubworkflowsci-smokeyml)).
+> Use **Environment secrets** so jobs run only with the minimum needed credentials for that environment (consumed by [Sections 5.3](#53-deployment-workflow--githubworkflowsterraform-deployyml) and [5.4](#54-secret-verification--githubworkflowsci-smokeyml)).
 
 ---
 
