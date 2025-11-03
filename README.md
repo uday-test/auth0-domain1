@@ -135,9 +135,9 @@ auth0-domain1/
 
 ### 3.1 CODEOWNERS Review Model
 - File: `CODEOWNERS`
-- Default owner: `@uday-test/ciam-core` for everything.
-- App folders: `/apps/app1/` → `@uday-test/team-app1-reviewers`, `/apps/app2/` → `@uday-test/team-app2-reviewers`.
-- CI workflows, base configs, policies, catalogs, scripts, and CODEOWNERS itself → `@uday-test/ciam-core`.
+- Default owner: `@<your-org>/ciam-core` for everything.
+- App folders: `/apps/app1/` → `@<your-org>/team-app1-reviewers`, `/apps/app2/` → `@<your-org>/team-app2-reviewers`.
+- CI workflows, base configs, policies, catalogs, scripts, and CODEOWNERS itself → `@<your-org>/ciam-core`.
 
 This ensures the right reviewers must approve changes in app- or platform-owned paths before merging (see [Section 5.1 – Path Guard](#51-pr-validation-workflow--githubworkflowspr-checksyml)).
 
@@ -396,20 +396,20 @@ This section prepares GitHub and Auth0 so the CI policy gates and Terraform flow
 
 Create the following teams in your GitHub org:
 
-- **@uday-test/ciam-core**
+- **@<your-org>/ciam-core**
   - Purpose: platform owners (full repo + prod controls).
   - Minimum permissions: Maintain (or Admin).
 
-- **@uday-test/team-app1**
+- **@<your-org>/team-app1**
   - Purpose: app1 developers (dev-only app path).
   - Permissions: Write on repo.
 
-- **@uday-test/team-app1-reviewers**
+- **@<your-org>/team-app1-reviewers**
   - Purpose: required reviewers for app1 paths.
   - Permissions: Write.
   - This team is child of the parent team team-app1.
 
-- **@uday-test/team-app2 / @uday-test/team-app2-reviewers**
+- **@<your-org>/team-app2 / @<your-org>/team-app2-reviewers**
   - Same as app1 for app2.
 
 > Keep the names exactly as referenced in CODEOWNERS and `base/policies/path_guard.rego` (see [Sections 3.1–3.2](#3-access-control--path-governance)).
