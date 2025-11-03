@@ -191,7 +191,7 @@ This ensures the right reviewers must approve changes in app- or platform-owned 
   - `orgs.yml` (organization usage rules and behaviors)
 - **Configs (per app):** `apps/<app>/{security.yml,tokens.yml,orgs.yml}`
 - **Policy:** `base/policies/auth0_policy.rego`
-  - Inputs: `input.security`, `input.tokens`, `input.orgs`, plus derived `input.app_type` (e.g., SPA, regular_web, native) inferred by the workflow from the file (executed in [Section 5.1 – app-config-validation](#51-pr-validation-workflow--githubworkflowspr-checksyml)).
+  - Inputs: `input.security`, `input.tokens`, `input.orgs`
   - Validates app configs against common standards, e.g.:
     - **Grant types**: SPA → `authorization_code`, forbid implicit in enterprise prod context; Regular Web → `authorization_code` and proper client auth; Native → no client secret.
     - **Response types** and **CORS/web origins** alignment with client type.
