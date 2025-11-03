@@ -147,8 +147,8 @@ This ensures the right reviewers must approve changes in app- or platform-owned 
 - Behavior:
   - Maps teams ↔ apps (`team-app1`, `team-app2`, including `*-reviewers`).
   - **Core bypass:** `ciam-core` can touch anything.
-  - **App scoping:** Non-core teams may only change their own app under `apps/<app>/...`.
-  - **Environment scoping:** Non-core teams are limited to `tenants/dev/...`; touching `tenants/prod/...` is always denied.
+  - **App scoping:** App teams may only change their own app under `apps/<app>/...`.
+  - **Environment scoping:**  Developer teams are limited to `tenants/dev/...`; touching `tenants/prod/...` is always denied.
 
 **Why it matters:** Improper cross-app changes or unauthorized env changes are blocked **before** any policy validations (see [Section 4](#4-standards-framework--policy-enforcement)) or Terraform stages (see [Section 5.2](#52-terraform-plan-validation--githubworkflowsterraform-checkyml) and [5.3](#53-deployment-workflow--githubworkflowsterraform-deployyml)) run.
 
