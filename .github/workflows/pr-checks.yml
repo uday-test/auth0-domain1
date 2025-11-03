@@ -638,9 +638,6 @@ jobs:
   # ------------------------------------
   # 6) SHARED-SEC POLICIES (Conftest validation)
   # ------------------------------------
-  # ------------------------------------
-  # 6) SHARED-SEC POLICIES (Conftest validation) - OPTIMIZED
-  # ------------------------------------
   shared-sec-policies:
     name: Shared-Sec Policies (Conftest)
     runs-on: ubuntu-latest
