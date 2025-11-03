@@ -175,7 +175,7 @@ This ensures the right reviewers must approve changes in app- or platform-owned 
 ### 4.2 Environment-Specific Tenant Standards (Overlays)
 - **Standards:** `tenants/overlays/validators/*.yml` encode **dev/qa/prod** specific rules (e.g., grant types, PKCE, HTTPS, UX restrictions, risk controls).
 - **Policy:** `tenants/overlays/policies/auth0_validation.rego`
-  - Detects `env` from inputs (issuer patterns, allowed origins, branding URL hints) and applies the correct env’s rules (invoked in [Section 5.1 – tenant-config-validation](#51-pr-validation-workflow--githubworkflowspr-checksyml)).
+  - Detects `env` from the folder that is being configured, pass that as input and applies the correct env’s rules  (invoked in [Section 5.1 – tenant-config-validation](#51-pr-validation-workflow--githubworkflowspr-checksyml)).
   - Examples enforced:
     - `require_https`: dev can be relaxed, qa/prod must be true.
     - `enforce_pkce`: required in qa/prod, relaxed in dev depending on client type.
