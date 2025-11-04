@@ -46,7 +46,7 @@ It uses:
 - **[Rego policies](#4-standards-framework--policy-enforcement)** with **Conftest** to validate YAML configuration files against defined standards before deployment (see [Section 5.1](#51-pr-validation-workflow--githubworkflowspr-checksyml)).  
 - **[GitHub Actions workflows](#5-continuous-integration--delivery-pipelines-cicd)** to enforce [path ownership and RBAC](#3-access-control--path-governance), validate [baseline configurations](#41-baseline-standards-vs-baseline-configurations), [tenant overlays](#42-environment-specific-tenant-standards-overlays), and [application-level settings](#43-application-level-standards--validations), while automating Terraform checks and deployments (see [Sections 5.2–5.3](#5-continuous-integration--delivery-pipelines-cicd)).  
 - **[Terraform automation](#6-terraform-deployment-model)** to apply validated and approved baseline configurations directly to Auth0 tenants using environment-specific M2M credentials.
-- The clear developer journey from raising a PR is represented in the [Figure 1](#Figure_1) below.
+- The clear developer journey from raising a PR is represented in the [`Figure 1`](#Figure_1) below.
 .
 > Primary CI/CD jobs reside in [`.github/workflows/`](#5-continuous-integration--delivery-pipelines-cicd), and policies live under  
 > [`base/**`](#41-baseline-standards-vs-baseline-configurations), [`tenants/**`](#42-environment-specific-tenant-standards-overlays), and [`overlays/**`](#44-enterprise-shared-security-overlay). Refer to [Section 11.1](#111-policy--workflow-file-references) for exact file paths.
