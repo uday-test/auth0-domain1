@@ -46,8 +46,7 @@ It uses:
 - **[Rego policies](#4-standards-framework--policy-enforcement)** with **Conftest** to validate YAML configuration files against defined standards before deployment (see [Section 5.1](#51-pr-validation-workflow--githubworkflowspr-checksyml)).  
 - **[GitHub Actions workflows](#5-continuous-integration--delivery-pipelines-cicd)** to enforce [path ownership and RBAC](#3-access-control--path-governance), validate [baseline configurations](#41-baseline-standards-vs-baseline-configurations), [tenant overlays](#42-environment-specific-tenant-standards-overlays), and [application-level settings](#43-application-level-standards--validations), while automating Terraform checks and deployments (see [Sections 5.2–5.3](#5-continuous-integration--delivery-pipelines-cicd)).  
 - **[Terraform automation](#6-terraform-deployment-model)** to apply validated and approved baseline configurations directly to Auth0 tenants using environment-specific M2M credentials.
-- The clear developer journey from raising a PR is represented in the [Figure 1](#figure-1) below.
-.
+
 > Primary CI/CD jobs reside in [`.github/workflows/`](#5-continuous-integration--delivery-pipelines-cicd), and policies live under  
 > [`base/**`](#41-baseline-standards-vs-baseline-configurations), [`tenants/**`](#42-environment-specific-tenant-standards-overlays), and [`overlays/**`](#44-enterprise-shared-security-overlay). Refer to [Section 11.1](#111-policy--workflow-file-references) for exact file paths.
 
@@ -156,7 +155,6 @@ This ensures the right reviewers must approve changes in app- or platform-owned 
 ---
 
 ## 4) Standards Framework & Policy Enforcement
-See [Figure 2](#figure-2) below
 ### 4.1 Baseline Standards vs Baseline Configurations
 - **Standards (authoritative expectations):**
   - `base/base-line/validators/*.yaml` (4 files) define required schema/values for:
@@ -211,7 +209,6 @@ See [Figure 2](#figure-2) below
 ---
 
 ## 5) Continuous Integration & Delivery Pipelines (CI/CD)
-See the below [Figure 3](#figure-3) for cinfiguration flow.
 
 ### 5.1 PR Validation Workflow – `.github/workflows/pr-checks.yml`
 **Triggers:** `pull_request` to `main` (opened, reopened, synchronize, edited, ready_for_review) and manual `workflow_dispatch`.
@@ -552,13 +549,4 @@ Some workflows (e.g., enriching reviewer/team checks or calling GitHub APIs beyo
 - **Low-friction onboarding**: Adding apps/tenants is a repeatable pattern with pre-wired validation paths ([Section 9](#9-extensibility--future-enhancements)).
 - **Reduced review noise**: Path Guard eliminates irrelevant reviewer pings and cross-team edit churn ([Section 3.2](#32-pr-path-guard-policy)).
 
-#### Figure 1
-Developer PR Workflow Journey illustrates the pull request lifecycle through Conftest validation, review approvals, and deployment triggers.
-![Developer flow](https://github.com/uday-test/auth0-domain1/blob/2221c7971291e405f68a70abbaf87e268884c44f/Final_developer_flow.drawio.png)
-#### Figure 2
-Policy Validation Flow shows sequential validation jobs triggered by PR changes, including baseline, tenant, and app checks.
-![Policy Validation Flow](https://github.com/uday-test/auth0-domain1/blob/cfab2161010ea579890ab2b5c975d2a2f7f45e18/final_policy_validation_flow.drawio.png)
-#### Figure 3 
-Configuration Data Flow depicts the complete YAML-to-production pipeline with Path Guard, policy validation, Terraform plan/apply, and artifact upload.
-![Configuration Data Flow](https://github.com/uday-test/auth0-domain1/blob/4af7f1f863ff3c5bb2fdc4d08c008d3ab03469f6/final_Configuration_data_flow.drawio.png)
 
