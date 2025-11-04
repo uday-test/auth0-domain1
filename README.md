@@ -46,7 +46,8 @@ It uses:
 - **[Rego policies](#4-standards-framework--policy-enforcement)** with **Conftest** to validate YAML configuration files against defined standards before deployment (see [Section 5.1](#51-pr-validation-workflow--githubworkflowspr-checksyml)).  
 - **[GitHub Actions workflows](#5-continuous-integration--delivery-pipelines-cicd)** to enforce [path ownership and RBAC](#3-access-control--path-governance), validate [baseline configurations](#41-baseline-standards-vs-baseline-configurations), [tenant overlays](#42-environment-specific-tenant-standards-overlays), and [application-level settings](#43-application-level-standards--validations), while automating Terraform checks and deployments (see [Sections 5.2–5.3](#5-continuous-integration--delivery-pipelines-cicd)).  
 - **[Terraform automation](#6-terraform-deployment-model)** to apply validated and approved baseline configurations directly to Auth0 tenants using environment-specific M2M credentials.
-
+- The clear developer journey from raising a PR is represented in the [Figure 1](#Figure_1) below.
+.
 > Primary CI/CD jobs reside in [`.github/workflows/`](#5-continuous-integration--delivery-pipelines-cicd), and policies live under  
 > [`base/**`](#41-baseline-standards-vs-baseline-configurations), [`tenants/**`](#42-environment-specific-tenant-standards-overlays), and [`overlays/**`](#44-enterprise-shared-security-overlay). Refer to [Section 11.1](#111-policy--workflow-file-references) for exact file paths.
 
@@ -549,4 +550,8 @@ Some workflows (e.g., enriching reviewer/team checks or calling GitHub APIs beyo
 - **Single-source repo structure** clearly separates baseline, overlays, and app configs for easier ownership and scaling ([Section 2](#2-repository-architecture--folder-layout)).
 - **Low-friction onboarding**: Adding apps/tenants is a repeatable pattern with pre-wired validation paths ([Section 9](#9-extensibility--future-enhancements)).
 - **Reduced review noise**: Path Guard eliminates irrelevant reviewer pings and cross-team edit churn ([Section 3.2](#32-pr-path-guard-policy)).
+
+![Developer flow](https://github.com/uday-test/auth0-domain1/blob/2221c7971291e405f68a70abbaf87e268884c44f/Final_developer_flow.drawio.png)
+### Figure 1: 
+Developer PR Workflow Journey illustrates the pull request lifecycle through Conftest validation, review approvals, and deployment triggers.
 
