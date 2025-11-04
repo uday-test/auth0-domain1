@@ -552,12 +552,13 @@ Some workflows (e.g., enriching reviewer/team checks or calling GitHub APIs beyo
 - **Low-friction onboarding**: Adding apps/tenants is a repeatable pattern with pre-wired validation paths ([Section 9](#9-extensibility--future-enhancements)).
 - **Reduced review noise**: Path Guard eliminates irrelevant reviewer pings and cross-team edit churn ([Section 3.2](#32-pr-path-guard-policy)).
 
-![Developer flow](https://github.com/uday-test/auth0-domain1/blob/2221c7971291e405f68a70abbaf87e268884c44f/Final_developer_flow.drawio.png)
 #### Figure 1
 Developer PR Workflow Journey illustrates the pull request lifecycle through Conftest validation, review approvals, and deployment triggers.
-![Policy Validation Flow](https://github.com/uday-test/auth0-domain1/blob/cfab2161010ea579890ab2b5c975d2a2f7f45e18/final_policy_validation_flow.drawio.png)
+![Developer flow](https://github.com/uday-test/auth0-domain1/blob/2221c7971291e405f68a70abbaf87e268884c44f/Final_developer_flow.drawio.png)
 #### Figure 2
 Policy Validation Flow shows sequential validation jobs triggered by PR changes, including baseline, tenant, and app checks.
-![Configuration Data Flow](https://github.com/uday-test/auth0-domain1/blob/4af7f1f863ff3c5bb2fdc4d08c008d3ab03469f6/final_Configuration_data_flow.drawio.png)
+![Policy Validation Flow](https://github.com/uday-test/auth0-domain1/blob/cfab2161010ea579890ab2b5c975d2a2f7f45e18/final_policy_validation_flow.drawio.png)
 #### Figure 3 
 Configuration Data Flow depicts the complete YAML-to-production pipeline with Path Guard, policy validation, Terraform plan/apply, and artifact upload.
+![Configuration Data Flow](https://github.com/uday-test/auth0-domain1/blob/4af7f1f863ff3c5bb2fdc4d08c008d3ab03469f6/final_Configuration_data_flow.drawio.png)
+
