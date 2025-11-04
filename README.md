@@ -156,7 +156,7 @@ This ensures the right reviewers must approve changes in app- or platform-owned 
 ---
 
 ## 4) Standards Framework & Policy Enforcement
-
+See [Figure 2](#figure-2) below
 ### 4.1 Baseline Standards vs Baseline Configurations
 - **Standards (authoritative expectations):**
   - `base/base-line/validators/*.yaml` (4 files) define required schema/values for:
@@ -555,7 +555,9 @@ Some workflows (e.g., enriching reviewer/team checks or calling GitHub APIs beyo
 ![Developer flow](https://github.com/uday-test/auth0-domain1/blob/2221c7971291e405f68a70abbaf87e268884c44f/Final_developer_flow.drawio.png)
 #### Figure 1
 Developer PR Workflow Journey illustrates the pull request lifecycle through Conftest validation, review approvals, and deployment triggers.
-
+![Policy Validation Flow](https://github.com/uday-test/auth0-domain1/blob/cfab2161010ea579890ab2b5c975d2a2f7f45e18/final_policy_validation_flow.drawio.png)
+#### Figure 2
+Policy Validation Flow shows sequential validation jobs triggered by PR changes, including baseline, tenant, and app checks.
 ![Configuration Data Flow](https://github.com/uday-test/auth0-domain1/blob/4af7f1f863ff3c5bb2fdc4d08c008d3ab03469f6/final_Configuration_data_flow.drawio.png)
 #### Figure 3 
 Configuration Data Flow depicts the complete YAML-to-production pipeline with Path Guard, policy validation, Terraform plan/apply, and artifact upload.
