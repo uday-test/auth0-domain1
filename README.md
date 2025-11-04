@@ -211,6 +211,7 @@ This ensures the right reviewers must approve changes in app- or platform-owned 
 ---
 
 ## 5) Continuous Integration & Delivery Pipelines (CI/CD)
+See the below [Figure 3](#figure-3) for cinfiguration flow.
 
 ### 5.1 PR Validation Workflow – `.github/workflows/pr-checks.yml`
 **Triggers:** `pull_request` to `main` (opened, reopened, synchronize, edited, ready_for_review) and manual `workflow_dispatch`.
@@ -552,6 +553,9 @@ Some workflows (e.g., enriching reviewer/team checks or calling GitHub APIs beyo
 - **Reduced review noise**: Path Guard eliminates irrelevant reviewer pings and cross-team edit churn ([Section 3.2](#32-pr-path-guard-policy)).
 
 ![Developer flow](https://github.com/uday-test/auth0-domain1/blob/2221c7971291e405f68a70abbaf87e268884c44f/Final_developer_flow.drawio.png)
-### Figure 1
+#### Figure 1
 Developer PR Workflow Journey illustrates the pull request lifecycle through Conftest validation, review approvals, and deployment triggers.
 
+![Configuration Data Flow](https://github.com/uday-test/auth0-domain1/blob/4af7f1f863ff3c5bb2fdc4d08c008d3ab03469f6/final_Configuration_data_flow.drawio.png)
+#### Figure 3 
+Configuration Data Flow depicts the complete YAML-to-production pipeline with Path Guard, policy validation, Terraform plan/apply, and artifact upload.
