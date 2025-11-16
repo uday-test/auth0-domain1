@@ -1,0 +1,31 @@
+# Valid configuration that passes both auth0.policy and shared_sec.rego
+
+# AUTH0 POLICY REQUIREMENTS
+app_type: "spa"                    # Valid type (spa or regular_web allowed)
+grant_types:
+  - "authorization_code"           # Valid grant (no password grants)
+mfa_factors:
+  - "otp"                         # Valid MFA (no sms/email)
+id_token_lifetime: 400            # Valid TTL (< 600 seconds)
+
+# SHARED-SEC POLICY REQUIREMENTS  
+passwordPolicy:
+  length:
+    min: 18                       # Exceeds minimum (>= 16)
+  history: 12                     # Exceeds minimum (>= 10)
+
+guardianMfaPolicy:
+  factors:
+    - name: "otp"
+      enabled: true               # Required factor
+    - name: "webauthn-roaming"
+      enabled: true               # Required factor  
+    - name: "sms"
+      enabled: false              # Must be disabled
+
+# Additional valid Auth0 settings
+client_id: "test-spa-client"
+callbacks:
+  - "https://localhost:3000/callback"
+web_origins:
+  - "https://localhost:3000"
