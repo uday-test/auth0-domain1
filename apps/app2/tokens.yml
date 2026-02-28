@@ -1,5 +1,5 @@
 jwt_configuration:
-  lifetime_in_seconds: 7200  # Recommended 30 min per tokens.yaml
+  lifetime_in_seconds: 7200  # Recommended 30 min per tokens.yam
   alg: "RS256"  # Required per tokens.yaml
   
 refresh_token:
