@@ -1,2 +1,2 @@
-organization_usage: "allow"
+organization_usage: "deny"
 organization_require_behavior: "no_prompt"
